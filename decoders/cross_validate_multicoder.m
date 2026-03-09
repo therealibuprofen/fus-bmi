@@ -18,8 +18,8 @@ function [cp_horz, p_horz, cp_vert, p_vert, cp_combined, p_combined, countingmat
 %                               Options are: 'leaveOneOut' or 'kFold'
 %       K:                      scalar double; If using 'kFold method',
 %                               then how many folds?
-%       classificationMethod:   String; Accepted values are: 'CPCA+LDA' or
-%                               'PCA+LDA'
+%       classificationMethod:   String; Accepted values are: 'CPCA+LDA',
+%                               'PCA+LDA', or 'FCNN'
 %       m:                      Scalar positive value; determines dimension
 %                               of each cPCA subspace. Max is (# of classes
 %                               - 1).
@@ -110,18 +110,18 @@ for i = 1:sets.K
     data(isnan(data)) = 0;
     
     % Train models
-    model_horz = train_classifier(data(horz_train, :), ...
+    model_horz = train_decoder(data(horz_train, :), ...
         labels(horz_train,1), ...
         'method', sets.classificationMethod, ...
         'variance_to_keep', sets.variance_to_keep);
-    model_vert = train_classifier(data(vert_train, :), ...
+    model_vert = train_decoder(data(vert_train, :), ...
         labels(vert_train,2), ...
         'method', sets.classificationMethod, ...
         'variance_to_keep', sets.variance_to_keep);
     
     % Test models using held-out data
-    class_horz = make_prediction(data(horz_test, :), model_horz);
-    class_vert = make_prediction(data(vert_test, :), model_vert);
+    class_horz = predict_decoder(data(horz_test, :), model_horz);
+    class_vert = predict_decoder(data(vert_test, :), model_vert);
     
     if all(~isnan(labels_combined))
         class_combined = class_horz + length(unique(labels(~isnan(labels(:,1)),1))) * (class_vert-1);

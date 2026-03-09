@@ -13,8 +13,8 @@ function [cp, p] = cross_validate(data, labels, varargin)
 %                               Options are: 'leaveOneOut' or 'kFold'
 %       K:                      scalar double; If using 'kFold method',
 %                               then how many folds?
-%       classificationMethod:   String; Accepted values are: 'CPCA+LDA' or
-%                               'PCA+LDA'
+%       classificationMethod:   String; Accepted values are: 'CPCA+LDA',
+%                               'PCA+LDA', or 'FCNN'
 %       m:                      Scalar positive value; determines dimension
 %                               of each cPCA subspace. Max is (# of classes
 %                               - 1). 
@@ -74,12 +74,12 @@ cp = classperf(labels);     % initializing class performance var
         data(isnan(data)) = 0;
         
         % Train model
-        model = train_classifier(data(train, :), labels(train, :), ...
+        model = train_decoder(data(train, :), labels(train, :), ...
             'method', sets.classificationMethod, ...
             'variance_to_keep', sets.variance_to_keep);
         
         % Test model on held-out data
-        class = make_prediction(data(test, :), model);
+        class = predict_decoder(data(test, :), model);
         
         % Assess performance
         classperf(cp, class, test);

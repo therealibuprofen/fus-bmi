@@ -23,6 +23,8 @@ function predict_movement_direction(data)
 %                       retrain       - Boolean to retrain the classifiers
 %                                       (or just predict using the static
 %                                       model)
+%                       decoder_method - String; decoder type, e.g.
+%                                       'CPCA+LDA', 'PCA+LDA', or 'FCNN'
 %                       mask          - The boolean mask of which voxels to
 %                                       use
 %                       mem_length    - How many frames are in memory
@@ -66,10 +68,18 @@ nClasses = data.nClasses;
 switch nClasses
     case 2
         task_type = '2 tgt';
+        default_decoder_method = 'CPCA+LDA';
     case 8
         task_type = '8 tgt';
+        default_decoder_method = 'PCA+LDA';
     otherwise
         error('This number of classes is not supported.');
+end
+
+if isfield(data, 'decoder_method') && ~isempty(data.decoder_method)
+    decoder_method = char(data.decoder_method);
+else
+    decoder_method = default_decoder_method;
 end
 
 nTrials_before_train = data.nTrials_before_train;
@@ -182,17 +192,17 @@ if phase(k) == 4 && ...
                 trainLabels_horz = lookup_table_for_horz(trainLabels);
                 trainLabels_vert = lookup_table_for_vert(trainLabels);
                 % Update the classifiers
-                model_horz = train_classifier(train, ...
+                model_horz = train_decoder(train, ...
                     trainLabels_horz, ...
-                    'method', 'PCA+LDA');
-                model_vert = train_classifier(train, ...
+                    'method', decoder_method);
+                model_vert = train_decoder(train, ...
                     trainLabels_vert, ...
-                    'method', 'PCA+LDA');
+                    'method', decoder_method);
             end
             % Make prediction
             
-            class_horz = make_prediction(test, model_horz);
-            class_vert = make_prediction(test, model_vert);
+            class_horz = predict_decoder(test, model_horz);
+            class_vert = predict_decoder(test, model_vert);
             
             
             % Combine horizontal and vertical prediction to make single
@@ -213,11 +223,11 @@ if phase(k) == 4 && ...
         case '2 tgt'
             % If no model has been trained yet, then train the model first.
             if isempty(model) % update the classifiers & predict
-                model = train_classifier(train, trainLabels, 'method', 'CPCA+LDA');
+                model = train_decoder(train, trainLabels, 'method', decoder_method);
             end
             
             % Make prediction
-            current_prediction = make_prediction(test, model);
+            current_prediction = predict_decoder(test, model);
             
             class_predicted= cat(2, class_predicted, current_prediction);
     end
@@ -302,12 +312,12 @@ if data.add_all_trials_to_training_set
                     % Update the classifiers
                     if retrain || isempty(model_horz) || isempty(model_vert) ||...
                             (~retrain && size(train,1) == nTrials_before_train)
-                        model_horz = train_classifier(train, ...
+                        model_horz = train_decoder(train, ...
                             trainLabels_horz, ...
-                            'method', 'PCA+LDA');
-                        model_vert = train_classifier(train, ...
+                            'method', decoder_method);
+                        model_vert = train_decoder(train, ...
                             trainLabels_vert, ...
-                            'method', 'PCA+LDA');
+                            'method', decoder_method);
                     end
                     
                     
@@ -315,7 +325,7 @@ if data.add_all_trials_to_training_set
                     % If two classes, then predict and store prediction.
                     if retrain || isempty(model) ||...
                             (~retrain && size(train,1) == nTrials_before_train)% update the classifiers & predict
-                        model = train_classifier(train, trainLabels, 'method', 'CPCA+LDA');
+                        model = train_decoder(train, trainLabels, 'method', decoder_method);
                     end
             end
         end
@@ -358,12 +368,12 @@ else % Only add successful trials
                     % Update the classifiers
                     if retrain || isempty(model_horz) || isempty(model_vert) ||...
                             (~retrain && size(train,1) == nTrials_before_train)
-                        model_horz = train_classifier(train, ...
+                        model_horz = train_decoder(train, ...
                             trainLabels_horz, ...
-                            'method', 'PCA+LDA');
-                        model_vert = train_classifier(train, ...
+                            'method', decoder_method);
+                        model_vert = train_decoder(train, ...
                             trainLabels_vert, ...
-                            'method', 'PCA+LDA');
+                            'method', decoder_method);
                     end
                     
                     
@@ -371,7 +381,7 @@ else % Only add successful trials
                     % If two classes, then predict and store prediction.
                     if retrain || isempty(model) ||...
                             (~retrain && size(train,1) == nTrials_before_train)% update the classifiers & predict
-                        model = train_classifier(train, trainLabels, 'method', 'CPCA+LDA');
+                        model = train_decoder(train, trainLabels, 'method', decoder_method);
                     end
             end
         end
