@@ -1,8 +1,33 @@
-function class = predict_decoder(testData, model)
+function class = predict_decoder(testData, model, varargin)
 % predict_decoder  Dispatcher for decoder inference.
 % Uses FCNN model when available, otherwise delegates to make_prediction.
 
-if isstruct(model) && isfield(model, "method") && strcmpi(string(model.method), "FCNN")
+persistent printedInferenceMethods
+if isempty(printedInferenceMethods)
+    printedInferenceMethods = string.empty(1, 0);
+end
+
+decoderVerbose = true;
+for i = 1:2:numel(varargin)
+    if i + 1 <= numel(varargin) && (ischar(varargin{i}) || isstring(varargin{i}))
+        if strcmpi(string(varargin{i}), "decoder_verbose")
+            decoderVerbose = logical(varargin{i + 1});
+        end
+    end
+end
+
+if isstruct(model) && isfield(model, "method")
+    method = string(model.method);
+else
+    method = "UNKNOWN";
+end
+
+if decoderVerbose && ~any(strcmpi(printedInferenceMethods, method))
+    fprintf('[predict_decoder] Inference decoder method: %s\n', method);
+    printedInferenceMethods(end + 1) = method;
+end
+
+if isstruct(model) && isfield(model, "method") && strcmpi(method, "FCNN")
     class = make_prediction_fcnn(testData, model);
 else
     class = make_prediction(testData, model);

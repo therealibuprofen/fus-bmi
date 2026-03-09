@@ -82,6 +82,10 @@ else
     decoder_method = default_decoder_method;
 end
 
+if isempty(k)
+    fprintf('[predict_movement_direction] decoder_method = %s\n', decoder_method);
+end
+
 nTrials_before_train = data.nTrials_before_train;
 
 filter_type = data.filter_type;

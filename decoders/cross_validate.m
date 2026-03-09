@@ -22,6 +22,9 @@ function [cp, p] = cross_validate(data, labels, varargin)
 %                               Out of 100. For the PCA dimensionality 
 %                               reduction methods. Not currently used for 
 %                               cPCA.
+%       fold_indices:           (N x 1) int; Optional precomputed fold ids
+%                               for fair method-to-method comparison.
+%       decoder_verbose:        bool; Print decoder selection logs?
 %       trial_ind:
 %      
 % OUTPUTS:
@@ -42,6 +45,8 @@ inp.addOptional('K',10);
 inp.addOptional('classificationMethod','CPCA+LDA')
 inp.addParameter('m', 1);
 inp.addParameter('variance_to_keep', 95);
+inp.addParameter('fold_indices', []);
+inp.addParameter('decoder_verbose', true, @islogical);
 inp.addOptional('trial_ind', 1:length(labels));
 inp.parse(varargin{:});
 sets = inp.Results;
@@ -59,7 +64,17 @@ cp = classperf(labels);     % initializing class performance var
     end
     
     % cross validate here
-    indices = crossvalind('Kfold', N, sets.K);
+    if isempty(sets.fold_indices)
+        indices = crossvalind('Kfold', N, sets.K);
+    else
+        indices = sets.fold_indices(:);
+        if length(indices) ~= N
+            error('fold_indices must have one entry per sample.');
+        end
+        if max(indices) > sets.K || min(indices) < 1
+            error('fold_indices values must be in [1, K].');
+        end
+    end
     % for each k-fold
     if sets.verbose
         fprintf('%d folds: ', sets.K);
@@ -76,10 +91,12 @@ cp = classperf(labels);     % initializing class performance var
         % Train model
         model = train_decoder(data(train, :), labels(train, :), ...
             'method', sets.classificationMethod, ...
+            'decoder_verbose', sets.decoder_verbose, ...
             'variance_to_keep', sets.variance_to_keep);
         
         % Test model on held-out data
-        class = predict_decoder(data(test, :), model);
+        class = predict_decoder(data(test, :), model, ...
+            'decoder_verbose', sets.decoder_verbose);
         
         % Assess performance
         classperf(cp, class, test);
