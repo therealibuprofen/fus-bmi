@@ -66,41 +66,9 @@ for i = 1:nMethods
     method = cfg.methods{i};
     fprintf('\n===== Evaluating %s =====\n', method);
 
-    try
-        if supportsFoldIndices
-            [cp, p] = cross_validate(X, y, ...
-                'verbose', false, ...
-                'validationMethod', char(cfg.validationMethod), ...
-                'K', K, ...
-                'classificationMethod', method, ...
-                'fold_indices', indices, ...
-                'decoder_verbose', cfg.decoderVerbose);
-        else
-            rng(cfg.randomSeed);
-            [cp, p] = cross_validate(X, y, ...
-                'verbose', false, ...
-                'validationMethod', char(cfg.validationMethod), ...
-                'K', K, ...
-                'classificationMethod', method);
-        end
-    catch ME
-        if supportsFoldIndices && contains(ME.message, 'fold_indices')
-            supportsFoldIndices = false;
-            warning(['cross_validate 不支持 fold_indices 参数。' ...
-                '将改用固定随机种子确保折分一致。']);
-            rng(cfg.randomSeed);
-            [cp, p] = cross_validate(X, y, ...
-                'verbose', false, ...
-                'validationMethod', char(cfg.validationMethod), ...
-                'K', K, ...
-                'classificationMethod', method);
-        else
-            rethrow(ME);
-        end
-    end
-
-    [acc(i), nCorrect(i), nTotal(i)] = summarize_classperf(cp);
-    pval(i) = p;
+    % Use local CV to guarantee FCNN path is exercised.
+    [acc(i), nCorrect(i), nTotal(i), pval(i)] = cross_validate_local( ...
+        X, y, indices, method, cfg.decoderVerbose);
 end
 
 results = table(string(cfg.methods(:)), nCorrect, nTotal, acc, pval, ...
@@ -169,6 +137,54 @@ function [accPct, nCorrect, nTotal] = summarize_classperf(cp)
     nCorrect = sum(diag(cm));
     nTotal = sum(cm(:));
     accPct = (nCorrect / max(nTotal, 1)) * 100;
+end
+
+function [accPct, nCorrect, nTotal, p] = cross_validate_local(X, y, indices, method, decoderVerbose)
+    % Manual CV loop to ensure train_decoder/predict_decoder are used.
+    y = y(:);
+    classes = unique(y, 'sorted');
+    nClass = numel(classes);
+    cm = zeros(nClass);
+
+    K = max(indices);
+    for k = 1:K
+        test = (indices == k);
+        train = ~test;
+
+        XTrain = X(train, :);
+        yTrain = y(train, :);
+        XTest = X(test, :);
+        yTest = y(test, :);
+
+        % Fit zscore on train, apply to test
+        [XTrain, mu, sigma] = zscore(XTrain);
+        sigma(sigma == 0) = 1;
+        XTest = (XTest - mu) ./ sigma;
+        XTrain(~isfinite(XTrain)) = 0;
+        XTest(~isfinite(XTest)) = 0;
+
+        model = train_decoder(XTrain, yTrain, ...
+            'method', method, ...
+            'decoder_verbose', decoderVerbose);
+        yPred = predict_decoder(XTest, model, ...
+            'decoder_verbose', decoderVerbose);
+
+        % Update confusion matrix
+        for i = 1:numel(yTest)
+            trueIdx = find(classes == yTest(i), 1, 'first');
+            predIdx = find(classes == yPred(i), 1, 'first');
+            if ~isempty(trueIdx) && ~isempty(predIdx)
+                cm(predIdx, trueIdx) = cm(predIdx, trueIdx) + 1;
+            end
+        end
+    end
+
+    nCorrect = sum(diag(cm));
+    nTotal = sum(cm(:));
+    accPct = (nCorrect / max(nTotal, 1)) * 100;
+
+    chance = 1 / nClass;
+    p = binomialTest(nCorrect, nTotal, chance, 'one');
 end
 
 function [X, y, source] = buildDecoderDataset(cfg)
