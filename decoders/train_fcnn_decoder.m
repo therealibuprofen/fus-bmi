@@ -53,6 +53,10 @@ valid = all(isfinite(X), 2) & ~isnan(y);
 X = X(valid, :);
 y = y(valid);
 
+if size(X, 1) ~= numel(y)
+    error('XTrain维度必须为 n*d，且标签为 n*1。当前: %d vs %d', size(X,1), numel(y));
+end
+
 if numel(unique(y)) < 2
     error("标签类别数不足（<2），无法进行分类训练。");
 end
@@ -60,6 +64,7 @@ end
 classVals = unique(y, "sorted");
 classNames = string(classVals);
 yCat = categorical(y, classVals, classNames);
+yCat = yCat(:);
 
 %% -------------------- 分层划分 train/val/test --------------------
 cvTest = cvpartition(yCat, "HoldOut", cfg.testRatio);

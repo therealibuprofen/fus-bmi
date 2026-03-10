@@ -6,8 +6,8 @@ function model = train_classifier_fcnn(trainData, trainLabels, varargin)
 %   trainLabels:  (nSamples x 1) or (1 x nSamples)
 %
 % OPTIONAL NAME-VALUE:
-%   'hidden_dims'         default [256 128]
-%   'dropout'             default 0.2
+%   'hidden_dims'         default 3 (固定)
+%   'dropout'             default 0.0 (固定)
 %   'max_epochs'          default 120
 %   'mini_batch_size'     default 64
 %   'initial_learn_rate'  default 1e-3
@@ -17,8 +17,8 @@ function model = train_classifier_fcnn(trainData, trainLabels, varargin)
 %   'random_seed'         default 42
 
 p = inputParser;
-p.addParameter('hidden_dims', [256 128]);
-p.addParameter('dropout', 0.2);
+p.addParameter('hidden_dims', 3);
+p.addParameter('dropout', 0.0);
 p.addParameter('max_epochs', 120);
 p.addParameter('mini_batch_size', 64);
 p.addParameter('initial_learn_rate', 1e-3);
@@ -76,17 +76,16 @@ numFeatures = size(XTrain, 2);
 numClasses = numel(categories(yTrain));
 hidden = cfg.hidden_dims(:)';
 
-layers = [featureInputLayer(numFeatures, 'Name', 'input', 'Normalization', 'none')];
-for i = 1:numel(hidden)
-    layers = [layers
-        fullyConnectedLayer(hidden(i), 'Name', sprintf('fc%d', i))
-        reluLayer('Name', sprintf('relu%d', i))];
-    if cfg.dropout > 0
-        layers = [layers
-            dropoutLayer(cfg.dropout, 'Name', sprintf('drop%d', i))];
-    end
+if ~(isscalar(hidden) && hidden == 3)
+    error('FCNN architecture固定为1个隐藏层，且仅3个神经元。');
 end
-layers = [layers
+if cfg.dropout ~= 0
+    error('FCNN architecture不允许dropout。');
+end
+
+layers = [featureInputLayer(numFeatures, 'Name', 'input', 'Normalization', 'none')
+    fullyConnectedLayer(3, 'Name', 'fc1')
+    reluLayer('Name', 'relu1')
     fullyConnectedLayer(numClasses, 'Name', 'fc_out')
     softmaxLayer('Name', 'softmax')
     classificationLayer('Name', 'classOutput')];

@@ -191,7 +191,7 @@ function [X, y, source] = buildDecoderDataset(cfg)
                 'spatial_filter', cfg.spatialFilter, ...
                 'training_set_size', cfg.trainingSetSize, ...
                 'buffer_size', cfg.bufferSize);
-
+            td = max_pool_2x2_stride2(td);
             X = reshape(td, [], size(td, 4))';
             y = tl(:);
 
@@ -207,6 +207,23 @@ function [X, y, source] = buildDecoderDataset(cfg)
 
         otherwise
             error("cfg.dataInputMode 只支持 'project' 或 'matfile'。");
+    end
+end
+
+function td_pooled = max_pool_2x2_stride2(td)
+    % td: [yPix x xPix x nFrames x nTrials]
+    [yPix, xPix, nFrames, nTrials] = size(td);
+    y2 = floor(yPix / 2);
+    x2 = floor(xPix / 2);
+    td = td(1:2*y2, 1:2*x2, :, :);
+
+    td_pooled = zeros(y2, x2, nFrames, nTrials, 'like', td);
+    for t = 1:nTrials
+        for f = 1:nFrames
+            A = td(:, :, f, t);
+            A = reshape(A, 2, y2, 2, x2);
+            td_pooled(:, :, f, t) = squeeze(max(max(A, [], 1), [], 3));
+        end
     end
 end
 

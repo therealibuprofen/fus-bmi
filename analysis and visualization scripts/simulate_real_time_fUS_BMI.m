@@ -313,9 +313,11 @@ end
 %% Plot performance
 if size(data.session_run_list, 1)>1
     session_string = sprintf('%d ', data.session_run_list(:, 1)');
-    subtitle = sprintf('[%s ]\n Retrain: %s PreviousData: %s', session_string, string(retrain), string(use_previous_data_session));
+    subtitle = sprintf('[%s ]\n Retrain: %s PreviousData: %s\n Decoder: %s', ...
+        session_string, string(retrain), string(use_previous_data_session), decoder_method);
 else
-    subtitle = sprintf('S%dR%d\n Retrain: %s PreviousData: %s', data.session, data.run, string(retrain), string(use_previous_data_session));
+    subtitle = sprintf('S%dR%d\n Retrain: %s PreviousData: %s\n Decoder: %s', ...
+        data.session, data.run, string(retrain), string(use_previous_data_session), decoder_method);
 end
 
 plot_performance(class_true, class_predicted, ...
