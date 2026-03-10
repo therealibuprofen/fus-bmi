@@ -142,6 +142,26 @@ switch decode_type
         error('This decode_type is not supported');
 end
 
+%% select decoder method
+switch decode_type
+    case '2 tgt'
+        decoder_option_strings = {'CPCA+LDA (2 directions)', 'FCNN (2 directions)'};
+        decoder_methods = {'CPCA+LDA', 'FCNN'};
+    case '8 tgt'
+        decoder_option_strings = {'PCA+LDA (8 directions)', 'FCNN (8 directions)'};
+        decoder_methods = {'PCA+LDA', 'FCNN'};
+end
+
+[decoder_choice, decoder_tf] = listdlg('ListString', decoder_option_strings, ...
+    'PromptString', 'Select decoder method:', ...
+    'SelectionMode', 'single');
+
+if ~decoder_tf
+    error('Decoder selection canceled.');
+end
+
+decoder_method = decoder_methods{decoder_choice};
+
 %% get important data & task variables
 [~, ~, n_frames] = size(dop);   % get data size
 
@@ -212,6 +232,7 @@ for frame = 1:n_frames
     data_struct.filter_type = filter_to_use;
     data_struct.filter_size = filter_size;
     data_struct.filter_sigma = filter_sigma;
+    data_struct.decoder_method = decoder_method;
     data_struct.session_run_list = data.session_run_list;
     
     switch decode_type
@@ -302,5 +323,4 @@ plot_performance(class_true, class_predicted, ...
     'n_training_trials', nTrials_before_train, ...
     'num_replicates', 1000, ...
     'rolling_average', 100);
-
 
