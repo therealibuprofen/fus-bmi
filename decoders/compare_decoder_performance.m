@@ -99,10 +99,8 @@ for i = 1:nMethods
         end
     end
 
-    acc(i) = cp.correctRate * 100;
+    [acc(i), nCorrect(i), nTotal(i)] = summarize_classperf(cp);
     pval(i) = p;
-    nCorrect(i) = sum(diag(cp.CountingMatrix));
-    nTotal(i) = sum(cp.CountingMatrix(:));
 end
 
 results = table(string(cfg.methods(:)), nCorrect, nTotal, acc, pval, ...
@@ -149,6 +147,28 @@ function [X, y, source] = parseInputData(s)
         '支持格式: (data,labels), (X,y), (features,labels), ' ...
         '(train,trainLabels), (train_data,train_labels), ' ...
         '或包含 dop/behavior/timestamps 的原始数据 struct。']);
+end
+
+function [accPct, nCorrect, nTotal] = summarize_classperf(cp)
+    % Robustly extract confusion matrix from different classperf classes.
+    cm = [];
+    if isprop(cp, 'CountingMatrix')
+        cm = cp.CountingMatrix;
+    elseif isprop(cp, 'ConfusionMatrix')
+        cm = cp.ConfusionMatrix;
+    elseif isfield(cp, 'CountingMatrix')
+        cm = cp.CountingMatrix;
+    elseif isfield(cp, 'ConfusionMatrix')
+        cm = cp.ConfusionMatrix;
+    end
+
+    if isempty(cm)
+        error('无法从 classperf 结果中提取混淆矩阵。');
+    end
+
+    nCorrect = sum(diag(cm));
+    nTotal = sum(cm(:));
+    accPct = (nCorrect / max(nTotal, 1)) * 100;
 end
 
 function [X, y, source] = buildDecoderDataset(cfg)
