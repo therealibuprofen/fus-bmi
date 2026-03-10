@@ -192,6 +192,7 @@ if phase(k) == 4 && ...
         case '8 tgt'
             % If no model has been trained yet, then train the model first.
             if isempty(model_horz) || isempty(model_vert)
+                fprintf('[predict_movement_direction] Training %s models for 8 tgt (horz/vert)\n', decoder_method);
                 % Define the class labels for horizontal and vertical
                 trainLabels_horz = lookup_table_for_horz(trainLabels);
                 trainLabels_vert = lookup_table_for_vert(trainLabels);
@@ -204,6 +205,7 @@ if phase(k) == 4 && ...
                     'method', decoder_method);
             end
             % Make prediction
+            fprintf('[predict_movement_direction] Predicting using %s for 8 tgt\n', decoder_method);
             
             class_horz = predict_decoder(test, model_horz);
             class_vert = predict_decoder(test, model_vert);
@@ -227,10 +229,12 @@ if phase(k) == 4 && ...
         case '2 tgt'
             % If no model has been trained yet, then train the model first.
             if isempty(model) % update the classifiers & predict
+                fprintf('[predict_movement_direction] Training %s model for 2 tgt\n', decoder_method);
                 model = train_decoder(train, trainLabels, 'method', decoder_method);
             end
             
             % Make prediction
+            fprintf('[predict_movement_direction] Predicting using %s for 2 tgt\n', decoder_method);
             current_prediction = predict_decoder(test, model);
             
             class_predicted= cat(2, class_predicted, current_prediction);

@@ -161,6 +161,7 @@ if ~decoder_tf
 end
 
 decoder_method = decoder_methods{decoder_choice};
+fprintf('[simulate_real_time_fUS_BMI] Selected decoder_method = %s\n', decoder_method);
 
 %% get important data & task variables
 [~, ~, n_frames] = size(dop);   % get data size
@@ -323,4 +324,3 @@ plot_performance(class_true, class_predicted, ...
     'n_training_trials', nTrials_before_train, ...
     'num_replicates', 1000, ...
     'rolling_average', 100);
-

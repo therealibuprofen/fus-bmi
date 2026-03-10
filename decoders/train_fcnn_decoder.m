@@ -33,8 +33,8 @@ cfg.testRatio = 0.20;                         % 测试集比例
 cfg.valRatioWithinTrain = 0.20;               % 训练集内部再划分验证集比例
 cfg.randomSeed = 42;
 
-cfg.hiddenDims = [256, 128];                  % FCNN 隐层维度
-cfg.dropout = 0.20;
+cfg.hiddenDims = 3;                           % FCNN 隐层维度（固定为 3）
+cfg.dropout = 0.0;                            % 不使用 dropout（固定）
 cfg.maxEpochs = 120;
 cfg.miniBatchSize = 64;
 cfg.initialLearnRate = 1e-3;
@@ -96,12 +96,8 @@ numClasses = numel(categories(yTrain));
 
 layers = [
     featureInputLayer(numFeatures, "Name", "input", "Normalization", "none")
-    fullyConnectedLayer(cfg.hiddenDims(1), "Name", "fc1")
+    fullyConnectedLayer(3, "Name", "fc1")
     reluLayer("Name", "relu1")
-    dropoutLayer(cfg.dropout, "Name", "drop1")
-    fullyConnectedLayer(cfg.hiddenDims(2), "Name", "fc2")
-    reluLayer("Name", "relu2")
-    dropoutLayer(cfg.dropout, "Name", "drop2")
     fullyConnectedLayer(numClasses, "Name", "fc_out")
     softmaxLayer("Name", "softmax")
     classificationLayer("Name", "classOutput")
@@ -153,6 +149,15 @@ fprintf("模型已保存到: %s\n", cfg.modelOutFile);
 %% -------------------- 使用示例 --------------------
 % singleTestData = XTest(1, :);            % 1 x nFeatures
 % predClass = make_prediction_fcnn(singleTestData, decoder)
+
+%% -------------------- 可选：隐藏层 3D 可视化 --------------------
+% 提取 3 个隐藏神经元的激活并绘图
+% hiddenAct = activations(net, XTest, "relu1", "OutputAs", "rows");
+% figure("Name", "Hidden Layer Activations", "Color", "w");
+% scatter3(hiddenAct(:,1), hiddenAct(:,2), hiddenAct(:,3), 20, double(yTest), "filled");
+% xlabel("Neuron 1"); ylabel("Neuron 2"); zlabel("Neuron 3");
+% title("3D Hidden Activations (Test Set)");
+% grid on;
 
 %% ==================== 本脚本内函数 ====================
 function [X, y, source] = parseInputData(s)
@@ -273,6 +278,7 @@ function [X, y, source] = buildDecoderDataset(cfg)
                 'spatial_filter', cfg.spatialFilter, ...
                 'training_set_size', cfg.trainingSetSize, ...
                 'buffer_size', cfg.bufferSize);
+            td = max_pool_2x2_stride2(td);
             X = reshape(td, [], size(td, 4))';
             y = tl(:);
 
@@ -288,5 +294,22 @@ function [X, y, source] = buildDecoderDataset(cfg)
 
         otherwise
             error("cfg.dataInputMode 只支持 'project' 或 'matfile'。");
+    end
+end
+
+function td_pooled = max_pool_2x2_stride2(td)
+    % td: [yPix x xPix x nFrames x nTrials]
+    [yPix, xPix, nFrames, nTrials] = size(td);
+    y2 = floor(yPix / 2);
+    x2 = floor(xPix / 2);
+    td = td(1:2*y2, 1:2*x2, :, :);
+
+    td_pooled = zeros(y2, x2, nFrames, nTrials, 'like', td);
+    for t = 1:nTrials
+        for f = 1:nFrames
+            A = td(:, :, f, t);
+            A = reshape(A, 2, y2, 2, x2);
+            td_pooled(:, :, f, t) = squeeze(max(max(A, [], 1), [], 3));
+        end
     end
 end
