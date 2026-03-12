@@ -153,6 +153,9 @@ if phase(k) == 4 && ...
     data_buff = preprocess_data(data_buff,...
         'zscore',true,...
         'spatial_filter', {filter_type, filter_size, filter_sigma});
+    if strcmpi(decoder_method, 'FCNN')
+        data_buff = max_pool_2x2_stride2_3d(data_buff);
+    end
     [m, n, ~] = size(data_buff);
 end
 
@@ -162,12 +165,51 @@ if length(phase) > 2 && ismember(phase(k), [8 9]) && ~ismember(phase(k-1), [8 9]
     data_buff = preprocess_data(data_buff,...
         'zscore',true,...
         'spatial_filter', {filter_type, filter_size, filter_sigma});
+    if strcmpi(decoder_method, 'FCNN')
+        data_buff = max_pool_2x2_stride2_3d(data_buff);
+    end
     [m, n, ~] = size(data_buff);
 end
 
 % display the latest images coming into the function & buffer
 if full_display || k==nb_block || nb_block==0
     plot_frame();
+end
+
+function data_pooled = max_pool_2x2_stride2_3d(data_in)
+% data_in: [yPix x xPix x nFrames]
+    [yPix, xPix, nFrames] = size(data_in);
+    y2 = floor(yPix / 2);
+    x2 = floor(xPix / 2);
+    data_in = data_in(1:2*y2, 1:2*x2, :);
+    data_pooled = zeros(y2, x2, nFrames, 'like', data_in);
+    for f = 1:nFrames
+        A = data_in(:, :, f);
+        A = reshape(A, 2, y2, 2, x2);
+        data_pooled(:, :, f) = squeeze(max(max(A, [], 1), [], 3));
+    end
+end
+
+function train_pooled = max_pool_flattened_trials(train_in, m, n, nFrames)
+% train_in: [nTrials x (m*n*nFrames)] flattened as [m x (n*nFrames)]
+    if size(train_in, 2) ~= m * n * nFrames
+        error('预训练数据维度不匹配，无法池化。期望 %d，实际 %d', m*n*nFrames, size(train_in, 2));
+    end
+    nTrials = size(train_in, 1);
+    m2 = floor(m / 2);
+    n2 = floor(n / 2);
+    train_pooled = zeros(nTrials, m2 * n2 * nFrames);
+    for t = 1:nTrials
+        A = reshape(train_in(t, :), m, n, nFrames);
+        A = A(1:2*m2, 1:2*n2, :);
+        B = zeros(m2, n2, nFrames, 'like', A);
+        for f = 1:nFrames
+            F = A(:, :, f);
+            F = reshape(F, 2, m2, 2, n2);
+            B(:, :, f) = squeeze(max(max(F, [], 1), [], 3));
+        end
+        train_pooled(t, :) = reshape(B, 1, []);
+    end
 end
 
 
@@ -524,11 +566,19 @@ end
             
             
             load(prealigned_file, 'train_single', 'train_labels_single', ...
-                'session_run_list_old');
+                'session_run_list_old', 'neurovascular_map_new');
             putvar(prealigned_file, session_run_list_old);
             fprintf('Previous training session loaded\n');
             train = double(train_single); % Convert back to double
             trainLabels = double(train_labels_single);
+            if strcmpi(decoder_method, 'FCNN')
+                if ~exist('neurovascular_map_new', 'var') || isempty(neurovascular_map_new)
+                    error('FCNN预训练数据缺少neurovascular_map_new，无法进行池化降维。');
+                end
+                [m_prev, n_prev] = size(neurovascular_map_new);
+                train = max_pool_flattened_trials(train, m_prev, n_prev, training_set_size);
+                fprintf('[predict_movement_direction] Applied 2x2 max-pool to pretrain data for FCNN\n');
+            end
         end
         
         % Add some warnings
