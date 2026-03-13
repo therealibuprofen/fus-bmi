@@ -33,8 +33,8 @@ cfg.testRatio = 0.20;                         % 测试集比例
 cfg.valRatioWithinTrain = 0.20;               % 训练集内部再划分验证集比例
 cfg.randomSeed = 42;
 
-cfg.hiddenDims = 3;                           % FCNN 隐层维度（固定为 3）
-cfg.dropout = 0.0;                            % 不使用 dropout（固定）
+cfg.hiddenDims = [64, 32];                    % FCNN 隐层维度
+cfg.dropout = 0.2;                            % dropout
 cfg.maxEpochs = 120;
 cfg.miniBatchSize = 64;
 cfg.initialLearnRate = 1e-3;
@@ -101,8 +101,12 @@ numClasses = numel(categories(yTrain));
 
 layers = [
     featureInputLayer(numFeatures, "Name", "input", "Normalization", "none")
-    fullyConnectedLayer(3, "Name", "fc1")
+    fullyConnectedLayer(cfg.hiddenDims(1), "Name", "fc1")
     reluLayer("Name", "relu1")
+    dropoutLayer(cfg.dropout, "Name", "drop1")
+    fullyConnectedLayer(cfg.hiddenDims(2), "Name", "fc2")
+    reluLayer("Name", "relu2")
+    dropoutLayer(cfg.dropout, "Name", "drop2")
     fullyConnectedLayer(numClasses, "Name", "fc_out")
     softmaxLayer("Name", "softmax")
     classificationLayer("Name", "classOutput")
@@ -157,11 +161,11 @@ fprintf("模型已保存到: %s\n", cfg.modelOutFile);
 
 %% -------------------- 可选：隐藏层 3D 可视化 --------------------
 % 提取 3 个隐藏神经元的激活并绘图
-% hiddenAct = activations(net, XTest, "relu1", "OutputAs", "rows");
+% hiddenAct = activations(net, XTest, "relu2", "OutputAs", "rows");
 % figure("Name", "Hidden Layer Activations", "Color", "w");
 % scatter3(hiddenAct(:,1), hiddenAct(:,2), hiddenAct(:,3), 20, double(yTest), "filled");
 % xlabel("Neuron 1"); ylabel("Neuron 2"); zlabel("Neuron 3");
-% title("3D Hidden Activations (Test Set)");
+% title("3D Hidden Activations (Test Set, First 3 Neurons)");
 % grid on;
 
 %% ==================== 本脚本内函数 ====================
