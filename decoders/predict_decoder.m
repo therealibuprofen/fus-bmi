@@ -22,6 +22,10 @@ else
     method = "UNKNOWN";
 end
 
+assert(isstruct(model), 'predict_decoder: model is not a struct');
+assert(isfield(model, 'method'), 'predict_decoder: model lacks method field');
+fprintf('[predict_decoder] model.method = %s\n', method);
+
 if decoderVerbose && ~any(strcmpi(printedInferenceMethods, method))
     fprintf('[predict_decoder] Inference decoder method: %s\n', method);
     printedInferenceMethods(end + 1) = method;
