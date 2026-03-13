@@ -33,12 +33,17 @@ cfg.testRatio = 0.20;                         % 测试集比例
 cfg.valRatioWithinTrain = 0.20;               % 训练集内部再划分验证集比例
 cfg.randomSeed = 42;
 
-cfg.hiddenDims = [64, 32];                    % FCNN 隐层维度
-cfg.dropout = 0.2;                            % dropout
-cfg.maxEpochs = 120;
+cfg.hiddenDims = [128, 64];                   % FCNN 隐层维度
+cfg.dropout = 0.3;                            % dropout
+cfg.batchNorm = true;
+cfg.maxEpochs = 200;
 cfg.miniBatchSize = 64;
 cfg.initialLearnRate = 1e-3;
 cfg.l2Regularization = 1e-4;
+cfg.learnRateSchedule = "piecewise";
+cfg.learnRateDropFactor = 0.5;
+cfg.learnRateDropPeriod = 20;
+cfg.classWeightMode = "balanced";
 
 cfg.modelOutFile = "decoders/fcnn_decoder_model.mat";
 
@@ -103,13 +108,26 @@ layers = [
     featureInputLayer(numFeatures, "Name", "input", "Normalization", "none")
     fullyConnectedLayer(cfg.hiddenDims(1), "Name", "fc1")
     reluLayer("Name", "relu1")
-    dropoutLayer(cfg.dropout, "Name", "drop1")
+    ];
+if cfg.batchNorm
+    layers = [layers; batchNormalizationLayer("Name", "bn1")];
+end
+if cfg.dropout > 0
+    layers = [layers; dropoutLayer(cfg.dropout, "Name", "drop1")];
+end
+layers = [layers
     fullyConnectedLayer(cfg.hiddenDims(2), "Name", "fc2")
-    reluLayer("Name", "relu2")
-    dropoutLayer(cfg.dropout, "Name", "drop2")
+    reluLayer("Name", "relu2")];
+if cfg.batchNorm
+    layers = [layers; batchNormalizationLayer("Name", "bn2")];
+end
+if cfg.dropout > 0
+    layers = [layers; dropoutLayer(cfg.dropout, "Name", "drop2")];
+end
+layers = [layers
     fullyConnectedLayer(numClasses, "Name", "fc_out")
     softmaxLayer("Name", "softmax")
-    classificationLayer("Name", "classOutput")
+    build_classification_layer(yTrain, cfg.classWeightMode)
 ];
 
 opts = trainingOptions("adam", ...
@@ -117,6 +135,9 @@ opts = trainingOptions("adam", ...
     "MiniBatchSize", cfg.miniBatchSize, ...
     "InitialLearnRate", cfg.initialLearnRate, ...
     "L2Regularization", cfg.l2Regularization, ...
+    "LearnRateSchedule", cfg.learnRateSchedule, ...
+    "LearnRateDropFactor", cfg.learnRateDropFactor, ...
+    "LearnRateDropPeriod", cfg.learnRateDropPeriod, ...
     "Shuffle", "every-epoch", ...
     "ValidationData", {XVal, yVal}, ...
     "ValidationFrequency", max(1, floor(size(XTrain, 1) / cfg.miniBatchSize)), ...
@@ -191,6 +212,20 @@ function [X, y, source] = parseInputData(s)
         '支持格式: (data,labels), (X,y), (features,labels), ' ...
         '(train,trainLabels), (train_data,train_labels), ' ...
         '或包含 dop/behavior/timestamps 的原始数据 struct。']);
+end
+
+function layer = build_classification_layer(yTrain, mode)
+    classes = categories(yTrain);
+    switch lower(string(mode))
+        case "balanced"
+            counts = countcats(yTrain);
+            weights = median(counts) ./ max(counts, 1);
+            layer = classificationLayer("Name", "classOutput", ...
+                "Classes", classes, "ClassWeights", weights);
+        otherwise
+            layer = classificationLayer("Name", "classOutput", ...
+                "Classes", classes);
+    end
 end
 
 function [X, y, source] = parseXYFromStruct(st, prefix)

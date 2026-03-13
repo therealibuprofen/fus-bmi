@@ -6,8 +6,11 @@ function model = train_classifier_fcnn(trainData, trainLabels, varargin)
 %   trainLabels:  (nSamples x 1) or (1 x nSamples)
 %
 % OPTIONAL NAME-VALUE:
-%   'hidden_dims'         default [64 32]
-%   'dropout'             default 0.2
+%   'hidden_dims'         default [128 64]
+%   'dropout'             default 0.3
+%   'batch_norm'          default true
+%   'learn_rate_schedule' default 'piecewise'
+%   'class_weight_mode'   default 'balanced'
 %   'max_epochs'          default 120
 %   'mini_batch_size'     default 64
 %   'initial_learn_rate'  default 1e-3
@@ -17,15 +20,20 @@ function model = train_classifier_fcnn(trainData, trainLabels, varargin)
 %   'random_seed'         default 42
 
 p = inputParser;
-p.addParameter('hidden_dims', [64 32]);
-p.addParameter('dropout', 0.2);
+p.addParameter('hidden_dims', [128 64]);
+p.addParameter('dropout', 0.3);
+p.addParameter('batch_norm', true);
 p.addParameter('max_epochs', 120);
 p.addParameter('mini_batch_size', 64);
 p.addParameter('initial_learn_rate', 1e-3);
 p.addParameter('l2_regularization', 1e-4);
+p.addParameter('learn_rate_schedule', 'piecewise');
+p.addParameter('learn_rate_drop_factor', 0.5);
+p.addParameter('learn_rate_drop_period', 20);
 p.addParameter('validation_ratio', 0.2);
 p.addParameter('verbose', false, @islogical);
 p.addParameter('random_seed', 42);
+p.addParameter('class_weight_mode', 'balanced'); % 'balanced' or 'none'
 p.KeepUnmatched = true;
 p.parse(varargin{:});
 cfg = p.Results;
@@ -84,6 +92,10 @@ for i = 1:numel(hidden)
     layers = [layers
         fullyConnectedLayer(hidden(i), 'Name', sprintf('fc%d', i))
         reluLayer('Name', sprintf('relu%d', i))];
+    if cfg.batch_norm
+        layers = [layers
+            batchNormalizationLayer('Name', sprintf('bn%d', i))];
+    end
     if cfg.dropout > 0
         layers = [layers
             dropoutLayer(cfg.dropout, 'Name', sprintf('drop%d', i))];
@@ -92,13 +104,16 @@ end
 layers = [layers
     fullyConnectedLayer(numClasses, 'Name', 'fc_out')
     softmaxLayer('Name', 'softmax')
-    classificationLayer('Name', 'classOutput')];
+    build_classification_layer(yTrain, cfg.class_weight_mode)];
 
 opts = trainingOptions('adam', ...
     'MaxEpochs', cfg.max_epochs, ...
     'MiniBatchSize', cfg.mini_batch_size, ...
     'InitialLearnRate', cfg.initial_learn_rate, ...
     'L2Regularization', cfg.l2_regularization, ...
+    'LearnRateSchedule', cfg.learn_rate_schedule, ...
+    'LearnRateDropFactor', cfg.learn_rate_drop_factor, ...
+    'LearnRateDropPeriod', cfg.learn_rate_drop_period, ...
     'Shuffle', 'every-epoch', ...
     'Verbose', cfg.verbose, ...
     'Plots', 'none');
@@ -118,4 +133,18 @@ model.sigma = sigma;
 model.classValues = classVals;
 model.classNames = categories(yTrain);
 model.config = cfg;
+end
+
+function layer = build_classification_layer(yTrain, mode)
+    classes = categories(yTrain);
+    switch lower(string(mode))
+        case "balanced"
+            counts = countcats(yTrain);
+            weights = median(counts) ./ max(counts, 1);
+            layer = classificationLayer('Name', 'classOutput', ...
+                'Classes', classes, 'ClassWeights', weights);
+        otherwise
+            layer = classificationLayer('Name', 'classOutput', ...
+                'Classes', classes);
+    end
 end
