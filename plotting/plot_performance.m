@@ -223,5 +223,13 @@ set(gca, 'XColor','w', 'YColor','w')
 
 
 %% Add overall title
-title(tld, ['Decoder performance - ' inputs.subtitle], 'Color', 'w');
-
+overall_title = ['Decoder performance - ' inputs.subtitle];
+if exist('sgtitle', 'file') == 2 || exist('sgtitle', 'builtin') == 5
+    sgtitle(overall_title, 'Color', 'w');
+else
+    try
+        title(tld, overall_title, 'Color', 'w');
+    catch
+        % Older MATLAB versions can have incompatible tiledlayout title handling.
+    end
+end

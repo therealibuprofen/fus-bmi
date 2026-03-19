@@ -47,6 +47,7 @@ persistent k Dop t_elapsed t label phase trial train...
 persistent class_predicted_horz class_predicted_vert class_true_horz class_true_vert ...
     custom_counting_matrix lookup_table_for_horz lookup_table_for_vert ...
     model_horz model_vert
+persistent prediction_log_printed
 
 %% Specifying task and parameters to run
 
@@ -291,7 +292,10 @@ if phase(k) == 4 && ...
                 end
             end
             % Make prediction
-            fprintf('[predict_movement_direction] Predicting using %s for 8 tgt\n', decoder_method);
+            if isempty(prediction_log_printed) || ~prediction_log_printed
+                fprintf('[predict_movement_direction] Predicting using %s for 8 tgt\n', decoder_method);
+                prediction_log_printed = true;
+            end
             
             class_horz = predict_decoder(test, model_horz);
             class_vert = predict_decoder(test, model_vert);
@@ -325,7 +329,10 @@ if phase(k) == 4 && ...
             end
             
             % Make prediction
-            fprintf('[predict_movement_direction] Predicting using %s for 2 tgt\n', decoder_method);
+            if isempty(prediction_log_printed) || ~prediction_log_printed
+                fprintf('[predict_movement_direction] Predicting using %s for 2 tgt\n', decoder_method);
+                prediction_log_printed = true;
+            end
             current_prediction = predict_decoder(test, model);
             
             class_predicted= cat(2, class_predicted, current_prediction);
@@ -601,6 +608,7 @@ end
         end
         
         % Initialize a dictionary
+        prediction_log_printed = false;
         % Create Container (equivalent to python dictionary)
         % These state names are the ones in Python. They won't perfectly
         % match with the state names from MATLAB.
