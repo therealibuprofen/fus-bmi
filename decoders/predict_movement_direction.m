@@ -24,7 +24,7 @@ function predict_movement_direction(data)
 %                                       (or just predict using the static
 %                                       model)
 %                       decoder_method - String; decoder type, e.g.
-%                                       'CPCA+LDA', 'PCA+LDA', or 'FCNN'
+%                                       'CPCA+LDA', 'PCA+LDA', 'FCNN', or 'CNN'
 %                       mask          - The boolean mask of which voxels to
 %                                       use
 %                       mem_length    - How many frames are in memory
@@ -40,7 +40,7 @@ function predict_movement_direction(data)
 
 % Specify the common persistents
 persistent k Dop t_elapsed t label phase trial train...
-    trainLabels class_predicted class_true model buffer_windows ...
+    trainLabels train_tensor class_predicted class_true model buffer_windows ...
     data_savepath num_frames_in_memory
 
 % Specify the task_specific persistents
@@ -83,6 +83,9 @@ else
     decoder_method = default_decoder_method;
 end
 
+is_fcnn_decoder = strcmpi(decoder_method, 'FCNN');
+is_cnn_decoder = strcmpi(decoder_method, 'CNN');
+
 if isempty(k)
     fprintf('[predict_movement_direction] decoder_method = %s\n', decoder_method);
 end
@@ -102,6 +105,26 @@ else
         'learn_rate_schedule', 'piecewise', ...
         'learn_rate_drop_factor', 0.5, ...
         'learn_rate_drop_period', 20, ...
+        'class_weight_mode', 'balanced' ...
+    );
+end
+
+if isfield(data, 'cnn_params') && ~isempty(data.cnn_params)
+    cnn_params = data.cnn_params;
+else
+    cnn_params = struct( ...
+        'num_filters', [16 32 64], ...
+        'temporal_kernel_size', 2, ...
+        'spatial_kernel_size', [3 3], ...
+        'dropout', 0.3, ...
+        'batch_norm', true, ...
+        'max_epochs', 50, ...
+        'mini_batch_size', 8, ...
+        'initial_learn_rate', 1e-3, ...
+        'l2_regularization', 1e-4, ...
+        'learn_rate_schedule', 'piecewise', ...
+        'learn_rate_drop_factor', 0.5, ...
+        'learn_rate_drop_period', 15, ...
         'class_weight_mode', 'balanced' ...
     );
 end
@@ -173,7 +196,7 @@ if phase(k) == 4 && ...
     data_buff = preprocess_data(data_buff,...
         'zscore',true,...
         'spatial_filter', {filter_type, filter_size, filter_sigma});
-    if strcmpi(decoder_method, 'FCNN')
+    if is_fcnn_decoder
         data_buff = max_pool_2x2_stride2_3d(data_buff);
     end
     [m, n, ~] = size(data_buff);
@@ -185,7 +208,7 @@ if length(phase) > 2 && ismember(phase(k), [8 9]) && ~ismember(phase(k-1), [8 9]
     data_buff = preprocess_data(data_buff,...
         'zscore',true,...
         'spatial_filter', {filter_type, filter_size, filter_sigma});
-    if strcmpi(decoder_method, 'FCNN')
+    if is_fcnn_decoder
         data_buff = max_pool_2x2_stride2_3d(data_buff);
     end
     [m, n, ~] = size(data_buff);
@@ -249,6 +272,24 @@ function args = fcnn_train_args(p)
     };
 end
 
+function args = cnn_train_args(p)
+    args = { ...
+        'num_filters', p.num_filters, ...
+        'temporal_kernel_size', p.temporal_kernel_size, ...
+        'spatial_kernel_size', p.spatial_kernel_size, ...
+        'dropout', p.dropout, ...
+        'batch_norm', p.batch_norm, ...
+        'max_epochs', p.max_epochs, ...
+        'mini_batch_size', p.mini_batch_size, ...
+        'initial_learn_rate', p.initial_learn_rate, ...
+        'l2_regularization', p.l2_regularization, ...
+        'learn_rate_schedule', p.learn_rate_schedule, ...
+        'learn_rate_drop_factor', p.learn_rate_drop_factor, ...
+        'learn_rate_drop_period', p.learn_rate_drop_period, ...
+        'class_weight_mode', p.class_weight_mode ...
+    };
+end
+
 
 %% BCI
 %%%%% ONLINE PREDICTION %%%%%
@@ -262,8 +303,13 @@ if phase(k) == 4 && ...
         size(train,1) > nTrials_before_train
     
     % create the test set
-    new_test = reshape(data_buff(:,:,end-training_set_size+1:end), m, n*training_set_size);
-    test = reshape(new_test, 1, []);
+    test_volume = data_buff(:, :, end-training_set_size+1:end);
+    if is_cnn_decoder
+        test = test_volume;
+    else
+        new_test = reshape(test_volume, m, n*training_set_size);
+        test = reshape(new_test, 1, []);
+    end
     
     % make the prediction using `train_classifier` and
     % `make_prediction`
@@ -276,12 +322,18 @@ if phase(k) == 4 && ...
                 trainLabels_horz = lookup_table_for_horz(trainLabels);
                 trainLabels_vert = lookup_table_for_vert(trainLabels);
                 % Update the classifiers
-                if strcmpi(decoder_method, 'FCNN')
+                if is_fcnn_decoder
                     fcnn_args = fcnn_train_args(fcnn_params);
                     model_horz = train_decoder(train, trainLabels_horz, ...
                         'method', decoder_method, fcnn_args{:});
                     model_vert = train_decoder(train, trainLabels_vert, ...
                         'method', decoder_method, fcnn_args{:});
+                elseif is_cnn_decoder
+                    cnn_args = cnn_train_args(cnn_params);
+                    model_horz = train_decoder(train_tensor, trainLabels_horz, ...
+                        'method', decoder_method, cnn_args{:});
+                    model_vert = train_decoder(train_tensor, trainLabels_vert, ...
+                        'method', decoder_method, cnn_args{:});
                 else
                     model_horz = train_decoder(train, ...
                         trainLabels_horz, ...
@@ -320,9 +372,12 @@ if phase(k) == 4 && ...
             % If no model has been trained yet, then train the model first.
             if isempty(model) % update the classifiers & predict
                 fprintf('[predict_movement_direction] Training %s model for 2 tgt\n', decoder_method);
-                if strcmpi(decoder_method, 'FCNN')
+                if is_fcnn_decoder
                     fcnn_args = fcnn_train_args(fcnn_params);
                     model = train_decoder(train, trainLabels, 'method', decoder_method, fcnn_args{:});
+                elseif is_cnn_decoder
+                    cnn_args = cnn_train_args(cnn_params);
+                    model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, cnn_args{:});
                 else
                     model = train_decoder(train, trainLabels, 'method', decoder_method);
                 end
@@ -398,9 +453,16 @@ if data.add_all_trials_to_training_set
         training_window_end = memory_start_ind_relative_to_buffer_end - num_frames_in_memory+1;
         
         
-        new_train = reshape(data_buff(:,:,end-training_window_start:end-training_window_end),m,n*3);
-        
+        new_train_volume = data_buff(:, :, end-training_window_start:end-training_window_end);
+        new_train = reshape(new_train_volume, m, n * training_set_size);
         train = cat(1, train, reshape(new_train, 1, []));
+        if is_cnn_decoder
+            if isempty(train_tensor)
+                train_tensor(:, :, :, 1) = new_train_volume;
+            else
+                train_tensor(:, :, :, end + 1) = new_train_volume;
+            end
+        end
         
         trainLabels(size(train,1)) = label(k-1);
         
@@ -418,12 +480,18 @@ if data.add_all_trials_to_training_set
                     % Update the classifiers
                     if retrain || isempty(model_horz) || isempty(model_vert) ||...
                             (~retrain && size(train,1) == nTrials_before_train)
-                        if strcmpi(decoder_method, 'FCNN')
+                        if is_fcnn_decoder
                             fcnn_args = fcnn_train_args(fcnn_params);
                             model_horz = train_decoder(train, trainLabels_horz, ...
                                 'method', decoder_method, fcnn_args{:});
                             model_vert = train_decoder(train, trainLabels_vert, ...
                                 'method', decoder_method, fcnn_args{:});
+                        elseif is_cnn_decoder
+                            cnn_args = cnn_train_args(cnn_params);
+                            model_horz = train_decoder(train_tensor, trainLabels_horz, ...
+                                'method', decoder_method, cnn_args{:});
+                            model_vert = train_decoder(train_tensor, trainLabels_vert, ...
+                                'method', decoder_method, cnn_args{:});
                         else
                             model_horz = train_decoder(train, ...
                                 trainLabels_horz, ...
@@ -439,9 +507,12 @@ if data.add_all_trials_to_training_set
                     % If two classes, then predict and store prediction.
                     if retrain || isempty(model) ||...
                             (~retrain && size(train,1) == nTrials_before_train)% update the classifiers & predict
-                        if strcmpi(decoder_method, 'FCNN')
+                        if is_fcnn_decoder
                             fcnn_args = fcnn_train_args(fcnn_params);
                             model = train_decoder(train, trainLabels, 'method', decoder_method, fcnn_args{:});
+                        elseif is_cnn_decoder
+                            cnn_args = cnn_train_args(cnn_params);
+                            model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, cnn_args{:});
                         else
                             model = train_decoder(train, trainLabels, 'method', decoder_method);
                         end
@@ -467,9 +538,16 @@ else % Only add successful trials
         training_window_start = memory_start_ind_relative_to_buffer_end - num_frames_in_memory + training_set_size;
         training_window_end = memory_start_ind_relative_to_buffer_end - num_frames_in_memory+1;
         
-        new_train = reshape(data_buff(:,:,end-training_window_start:end-training_window_end),m,n*training_set_size);
-        
+        new_train_volume = data_buff(:, :, end-training_window_start:end-training_window_end);
+        new_train = reshape(new_train_volume, m, n * training_set_size);
         train = cat(1, train, reshape(new_train, 1, []));
+        if is_cnn_decoder
+            if isempty(train_tensor)
+                train_tensor(:, :, :, 1) = new_train_volume;
+            else
+                train_tensor(:, :, :, end + 1) = new_train_volume;
+            end
+        end
         
         trainLabels(size(train,1)) = label(k-1);
         
@@ -487,12 +565,18 @@ else % Only add successful trials
                     % Update the classifiers
                     if retrain || isempty(model_horz) || isempty(model_vert) ||...
                             (~retrain && size(train,1) == nTrials_before_train)
-                        if strcmpi(decoder_method, 'FCNN')
+                        if is_fcnn_decoder
                             fcnn_args = fcnn_train_args(fcnn_params);
                             model_horz = train_decoder(train, trainLabels_horz, ...
                                 'method', decoder_method, fcnn_args{:});
                             model_vert = train_decoder(train, trainLabels_vert, ...
                                 'method', decoder_method, fcnn_args{:});
+                        elseif is_cnn_decoder
+                            cnn_args = cnn_train_args(cnn_params);
+                            model_horz = train_decoder(train_tensor, trainLabels_horz, ...
+                                'method', decoder_method, cnn_args{:});
+                            model_vert = train_decoder(train_tensor, trainLabels_vert, ...
+                                'method', decoder_method, cnn_args{:});
                         else
                             model_horz = train_decoder(train, ...
                                 trainLabels_horz, ...
@@ -508,9 +592,12 @@ else % Only add successful trials
                     % If two classes, then predict and store prediction.
                     if retrain || isempty(model) ||...
                             (~retrain && size(train,1) == nTrials_before_train)% update the classifiers & predict
-                        if strcmpi(decoder_method, 'FCNN')
+                        if is_fcnn_decoder
                             fcnn_args = fcnn_train_args(fcnn_params);
                             model = train_decoder(train, trainLabels, 'method', decoder_method, fcnn_args{:});
+                        elseif is_cnn_decoder
+                            cnn_args = cnn_train_args(cnn_params);
+                            model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, cnn_args{:});
                         else
                             model = train_decoder(train, trainLabels, 'method', decoder_method);
                         end
@@ -571,6 +658,7 @@ end
         trial(k) = 1;           % trial number (int)
         
         custom_counting_matrix = zeros(9);
+        train_tensor = [];
         
         data_savepath = data.savepath;
         
@@ -654,13 +742,20 @@ end
             fprintf('Previous training session loaded\n');
             train = double(train_single); % Convert back to double
             trainLabels = double(train_labels_single);
-            if strcmpi(decoder_method, 'FCNN')
+            if is_fcnn_decoder
                 if ~exist('neurovascular_map_new', 'var') || isempty(neurovascular_map_new)
                     error('FCNN预训练数据缺少neurovascular_map_new，无法进行池化降维。');
                 end
                 [m_prev, n_prev] = size(neurovascular_map_new);
                 train = max_pool_flattened_trials(train, m_prev, n_prev, training_set_size);
                 fprintf('[predict_movement_direction] Applied 2x2 max-pool to pretrain data for FCNN\n');
+            elseif is_cnn_decoder
+                if ~exist('neurovascular_map_new', 'var') || isempty(neurovascular_map_new)
+                    error('CNN预训练数据缺少neurovascular_map_new，无法恢复空间维度。');
+                end
+                [m_prev, n_prev] = size(neurovascular_map_new);
+                train_tensor = reshape_flattened_trials_to_tensor(train, m_prev, n_prev, training_set_size);
+                fprintf('[predict_movement_direction] Loaded pretrain data as [H x W x T x N] tensor for CNN\n');
             end
         end
         
@@ -675,6 +770,18 @@ end
             warning('Using previous data session for training set. Make sure you have already run the alignment script');
         end
     end
+
+function train_tensor_out = reshape_flattened_trials_to_tensor(train_in, m, n, nFrames)
+    if size(train_in, 2) ~= m * n * nFrames
+        error('预训练数据维度不匹配，无法恢复为张量。期望 %d，实际 %d', ...
+            m * n * nFrames, size(train_in, 2));
+    end
+    nTrials = size(train_in, 1);
+    train_tensor_out = zeros(m, n, nFrames, nTrials);
+    for t = 1:nTrials
+        train_tensor_out(:, :, :, t) = reshape(train_in(t, :), m, n, nFrames);
+    end
+end
 
 %% plotting functions % % % % % % % % % % % % % % % % % % % % % % %
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
