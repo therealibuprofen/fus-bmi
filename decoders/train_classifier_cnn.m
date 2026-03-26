@@ -1,38 +1,25 @@
 function model = train_classifier_cnn(trainData, trainLabels, varargin)
-% train_classifier_cnn  Train spatiotemporal CNN decoder for classification.
+% train_classifier_cnn  Train factorized CNN decoder for classification.
+%
+% This model replaces full 3D convolutions with a spatial 2D convolution
+% [k k 1] followed by a temporal 1D convolution [1 1 t], which reduces
+% parameter count and usually shortens decode time.
 %
 % INPUTS:
 %   trainData:    [H x W x T x N] or [H x W x T x 1 x N]
 %                 Flattened [N x (H*W*T)] is also accepted when input_size
 %                 is provided.
 %   trainLabels:  (N x 1) or (1 x N)
-%
-% OPTIONAL NAME-VALUE:
-%   'input_size'             default []
-%   'num_filters'            default [16 32 64]
-%   'temporal_kernel_size'   default 2
-%   'spatial_kernel_size'    default [3 3]
-%   'dropout'                default 0.3
-%   'batch_norm'             default true
-%   'max_epochs'             default 80
-%   'mini_batch_size'        default 16
-%   'initial_learn_rate'     default 1e-3
-%   'l2_regularization'      default 1e-4
-%   'learn_rate_schedule'    default 'piecewise'
-%   'class_weight_mode'      default 'balanced'
-%   'validation_ratio'       default 0.2
-%   'verbose'                default false
-%   'random_seed'            default 42
 
 p = inputParser;
 p.addParameter('input_size', []);
-p.addParameter('num_filters', [16 32 64]);
-p.addParameter('temporal_kernel_size', 2);
+p.addParameter('num_filters', [8 16 32]);
+p.addParameter('temporal_kernel_size', 3);
 p.addParameter('spatial_kernel_size', [3 3]);
-p.addParameter('dropout', 0.3);
+p.addParameter('dropout', 0.2);
 p.addParameter('batch_norm', true);
-p.addParameter('max_epochs', 80);
-p.addParameter('mini_batch_size', 16);
+p.addParameter('max_epochs', 60);
+p.addParameter('mini_batch_size', 8);
 p.addParameter('initial_learn_rate', 1e-3);
 p.addParameter('l2_regularization', 1e-4);
 p.addParameter('learn_rate_schedule', 'piecewise');
@@ -63,30 +50,7 @@ classVals = unique(y, 'sorted');
 classNames = string(classVals);
 yCat = categorical(y, classVals, classNames);
 
-hasValidation = numel(y) >= 10 && cfg.validation_ratio > 0;
-if hasValidation
-    try
-        cv = cvpartition(yCat, 'HoldOut', cfg.validation_ratio);
-        idxTrain = training(cv);
-        idxVal = test(cv);
-        XTrain = X(:, :, :, :, idxTrain);
-        yTrain = yCat(idxTrain);
-        XVal = X(:, :, :, :, idxVal);
-        yVal = yCat(idxVal);
-    catch
-        hasValidation = false;
-        XTrain = X;
-        yTrain = yCat;
-    end
-else
-    XTrain = X;
-    yTrain = yCat;
-end
-
-[XTrain, mu, sigma] = zscore_samples(XTrain);
-if hasValidation
-    XVal = apply_zscore_samples(XVal, mu, sigma);
-end
+[XTrain, yTrain, XVal, yVal, hasValidation, mu, sigma] = split_and_normalize(X, yCat, cfg.validation_ratio);
 
 numClasses = numel(categories(yTrain));
 numFilters = cfg.num_filters(:)';
@@ -94,27 +58,26 @@ if isempty(numFilters)
     error('num_filters must be non-empty.');
 end
 
-kernelSize = [cfg.spatial_kernel_size(:)' cfg.temporal_kernel_size];
-layers = [
-    image3dInputLayer([inputSize 1], 'Name', 'input', 'Normalization', 'none')
-];
-
+layers = image3dInputLayer([inputSize 1], 'Name', 'input', 'Normalization', 'none');
 for i = 1:numel(numFilters)
     layers = [layers
-        convolution3dLayer(kernelSize, numFilters(i), ...
-            'Padding', 'same', 'Name', sprintf('conv%d', i))
-        reluLayer('Name', sprintf('relu%d', i))];
+        convolution3dLayer([cfg.spatial_kernel_size(:)' 1], numFilters(i), ...
+            'Padding', 'same', 'Name', sprintf('spatial_conv%d', i))
+        reluLayer('Name', sprintf('spatial_relu%d', i))];
     if cfg.batch_norm
         layers = [layers
-            batchNormalizationLayer('Name', sprintf('bn%d', i))];
-    end
-    poolSize = [2 2 1];
-    if i == numel(numFilters) && inputSize(3) >= 2
-        poolSize = [2 2 2];
+            batchNormalizationLayer('Name', sprintf('spatial_bn%d', i))];
     end
     layers = [layers
-        maxPooling3dLayer(poolSize, 'Stride', poolSize, ...
-            'Name', sprintf('pool%d', i))];
+        convolution3dLayer([1 1 cfg.temporal_kernel_size], numFilters(i), ...
+            'Padding', 'same', 'Name', sprintf('temporal_conv%d', i))
+        reluLayer('Name', sprintf('temporal_relu%d', i))];
+    if cfg.batch_norm
+        layers = [layers
+            batchNormalizationLayer('Name', sprintf('temporal_bn%d', i))];
+    end
+    layers = [layers
+        maxPooling3dLayer([2 2 1], 'Stride', [2 2 1], 'Name', sprintf('pool%d', i))];
     if cfg.dropout > 0
         layers = [layers
             dropoutLayer(cfg.dropout, 'Name', sprintf('drop%d', i))];
@@ -128,23 +91,7 @@ layers = [layers
     softmaxLayer('Name', 'softmax')
     build_classification_layer(yTrain, cfg.class_weight_mode)];
 
-opts = trainingOptions('adam', ...
-    'MaxEpochs', cfg.max_epochs, ...
-    'MiniBatchSize', cfg.mini_batch_size, ...
-    'InitialLearnRate', cfg.initial_learn_rate, ...
-    'L2Regularization', cfg.l2_regularization, ...
-    'LearnRateSchedule', cfg.learn_rate_schedule, ...
-    'LearnRateDropFactor', cfg.learn_rate_drop_factor, ...
-    'LearnRateDropPeriod', cfg.learn_rate_drop_period, ...
-    'Shuffle', 'every-epoch', ...
-    'Verbose', cfg.verbose, ...
-    'Plots', 'none');
-
-if hasValidation
-    opts.ValidationData = {XVal, yVal};
-    opts.ValidationFrequency = max(1, floor(size(XTrain, 5) / cfg.mini_batch_size));
-end
-
+opts = build_training_options(cfg, hasValidation, XTrain, XVal, yVal);
 net = trainNetwork(XTrain, yTrain, layers, opts);
 
 model = struct();
@@ -156,6 +103,59 @@ model.inputSize = inputSize;
 model.classValues = classVals;
 model.classNames = categories(yTrain);
 model.config = cfg;
+end
+
+function [XTrain, yTrain, XVal, yVal, hasValidation, mu, sigma] = split_and_normalize(X, yCat, validationRatio)
+    hasValidation = numel(yCat) >= 10 && validationRatio > 0;
+    if hasValidation
+        try
+            cv = cvpartition(yCat, 'HoldOut', validationRatio);
+            idxTrain = training(cv);
+            idxVal = test(cv);
+            XTrainRaw = X(:, :, :, :, idxTrain);
+            yTrain = yCat(idxTrain);
+            XVal = X(:, :, :, :, idxVal);
+            yVal = yCat(idxVal);
+        catch
+            hasValidation = false;
+            XTrainRaw = X;
+            yTrain = yCat;
+            XVal = [];
+            yVal = categorical();
+        end
+    else
+        XTrainRaw = X;
+        yTrain = yCat;
+        XVal = [];
+        yVal = categorical();
+    end
+
+    mu = mean(XTrainRaw, 5, 'omitnan');
+    sigma = std(XTrainRaw, 0, 5, 'omitnan');
+    sigma(sigma == 0) = 1;
+    XTrain = apply_zscore_samples(XTrainRaw, mu, sigma);
+    if hasValidation
+        XVal = apply_zscore_samples(XVal, mu, sigma);
+    end
+end
+
+function opts = build_training_options(cfg, hasValidation, XTrain, XVal, yVal)
+    opts = trainingOptions('adam', ...
+        'MaxEpochs', cfg.max_epochs, ...
+        'MiniBatchSize', cfg.mini_batch_size, ...
+        'InitialLearnRate', cfg.initial_learn_rate, ...
+        'L2Regularization', cfg.l2_regularization, ...
+        'LearnRateSchedule', cfg.learn_rate_schedule, ...
+        'LearnRateDropFactor', cfg.learn_rate_drop_factor, ...
+        'LearnRateDropPeriod', cfg.learn_rate_drop_period, ...
+        'Shuffle', 'every-epoch', ...
+        'Verbose', cfg.verbose, ...
+        'Plots', 'none');
+
+    if hasValidation
+        opts.ValidationData = {XVal, yVal};
+        opts.ValidationFrequency = max(1, floor(size(XTrain, 5) / cfg.mini_batch_size));
+    end
 end
 
 function [X, inputSize, nSamples] = normalize_input_shape(trainData, inputSizeArg)
@@ -171,8 +171,7 @@ function [X, inputSize, nSamples] = normalize_input_shape(trainData, inputSizeAr
             end
             nSamples = size(X, 1);
             if size(X, 2) ~= prod(inputSize)
-                error('扁平输入特征数(%d)与 input_size 乘积(%d)不匹配。', ...
-                    size(X, 2), prod(inputSize));
+                error('扁平输入特征数(%d)与 input_size 乘积(%d)不匹配。', size(X, 2), prod(inputSize));
             end
             X = reshape(X', [inputSize 1 nSamples]);
         case 4
@@ -190,13 +189,6 @@ function [X, inputSize, nSamples] = normalize_input_shape(trainData, inputSizeAr
     end
 end
 
-function [XNorm, mu, sigma] = zscore_samples(X)
-    mu = mean(X, 5, 'omitnan');
-    sigma = std(X, 0, 5, 'omitnan');
-    sigma(sigma == 0) = 1;
-    XNorm = apply_zscore_samples(X, mu, sigma);
-end
-
 function XNorm = apply_zscore_samples(X, mu, sigma)
     XNorm = (X - mu) ./ sigma;
     XNorm(~isfinite(XNorm)) = 0;
@@ -211,7 +203,6 @@ function layer = build_classification_layer(yTrain, mode)
             layer = classificationLayer('Name', 'classOutput', ...
                 'Classes', classes, 'ClassWeights', weights);
         otherwise
-            layer = classificationLayer('Name', 'classOutput', ...
-                'Classes', classes);
+            layer = classificationLayer('Name', 'classOutput', 'Classes', classes);
     end
 end

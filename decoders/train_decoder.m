@@ -1,6 +1,6 @@
 function model = train_decoder(trainData, trainLabels, varargin)
 % train_decoder  Dispatcher for decoder training.
-% Uses FCNN/CNN when method matches, otherwise delegates to train_classifier.
+% Uses FCNN/CNN/CNN+LSTM when method matches, otherwise delegates to train_classifier.
 
 persistent printedMethods
 if isempty(printedMethods)
@@ -41,6 +41,8 @@ if strcmpi(method, "FCNN")
     model = train_classifier_fcnn(trainData, trainLabels, forwardArgs{:});
 elseif strcmpi(method, "CNN")
     model = train_classifier_cnn(trainData, trainLabels, forwardArgs{:});
+elseif strcmpi(method, "CNN+LSTM") || strcmpi(method, "CNN_LSTM") || strcmpi(method, "CNNLSTM")
+    model = train_classifier_cnn_lstm(trainData, trainLabels, forwardArgs{:});
 else
     model = train_classifier(trainData, trainLabels, forwardArgs{:});
 end

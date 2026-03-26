@@ -145,11 +145,11 @@ end
 %% select decoder method
 switch decode_type
     case '2 tgt'
-        decoder_option_strings = {'CPCA+LDA (2 directions)', 'FCNN (2 directions)', 'CNN (2 directions)'};
-        decoder_methods = {'CPCA+LDA', 'FCNN', 'CNN'};
+        decoder_option_strings = {'CPCA+LDA (2 directions)', 'FCNN (2 directions)', 'CNN (2 directions)', 'CNN+LSTM (2 directions)'};
+        decoder_methods = {'CPCA+LDA', 'FCNN', 'CNN', 'CNN+LSTM'};
     case '8 tgt'
-        decoder_option_strings = {'PCA+LDA (8 directions)', 'FCNN (8 directions)', 'CNN (8 directions)'};
-        decoder_methods = {'PCA+LDA', 'FCNN', 'CNN'};
+        decoder_option_strings = {'PCA+LDA (8 directions)', 'FCNN (8 directions)', 'CNN (8 directions)', 'CNN+LSTM (8 directions)'};
+        decoder_methods = {'PCA+LDA', 'FCNN', 'CNN', 'CNN+LSTM'};
 end
 
 [decoder_choice, decoder_tf] = listdlg('ListString', decoder_option_strings, ...

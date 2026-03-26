@@ -1,6 +1,6 @@
 function class = predict_decoder(testData, model, varargin)
 % predict_decoder  Dispatcher for decoder inference.
-% Uses FCNN/CNN model when available, otherwise delegates to make_prediction.
+% Uses FCNN/CNN/CNN+LSTM model when available, otherwise delegates to make_prediction.
 
 persistent printedInferenceMethods
 if isempty(printedInferenceMethods)
@@ -31,6 +31,9 @@ if isstruct(model) && isfield(model, "method") && strcmpi(method, "FCNN")
     class = make_prediction_fcnn(testData, model);
 elseif isstruct(model) && isfield(model, "method") && strcmpi(method, "CNN")
     class = make_prediction_cnn(testData, model);
+elseif isstruct(model) && isfield(model, "method") && ...
+        (strcmpi(method, "CNN+LSTM") || strcmpi(method, "CNN_LSTM") || strcmpi(method, "CNNLSTM"))
+    class = make_prediction_cnn_lstm(testData, model);
 else
     class = make_prediction(testData, model);
 end
