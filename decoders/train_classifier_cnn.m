@@ -29,6 +29,8 @@ p.addParameter('validation_ratio', 0.2);
 p.addParameter('verbose', false, @islogical);
 p.addParameter('random_seed', 42);
 p.addParameter('class_weight_mode', 'balanced');
+p.addParameter('normalize_in_network', true, @islogical);
+p.addParameter('execution_environment', 'auto');
 p.KeepUnmatched = true;
 p.parse(varargin{:});
 cfg = p.Results;
@@ -50,7 +52,7 @@ classVals = unique(y, 'sorted');
 classNames = string(classVals);
 yCat = categorical(y, classVals, classNames);
 
-[XTrain, yTrain, XVal, yVal, hasValidation, mu, sigma] = split_and_normalize(X, yCat, cfg.validation_ratio);
+[XTrain, yTrain, XVal, yVal, hasValidation, mu, sigma] = split_and_prepare(X, yCat, cfg.validation_ratio, cfg.normalize_in_network);
 
 numClasses = numel(categories(yTrain));
 numFilters = cfg.num_filters(:)';
@@ -59,6 +61,14 @@ if isempty(numFilters)
 end
 
 layers = image3dInputLayer([inputSize 1], 'Name', 'input', 'Normalization', 'none');
+if cfg.normalize_in_network
+    layers = [
+        layers
+        functionLayer(@(X) apply_fixed_zscore_dl(X, mu, sigma), ...
+            'Name', 'fixed_zscore', ...
+            'Formattable', true)
+    ];
+end
 for i = 1:numel(numFilters)
     layers = [layers
         convolution3dLayer([cfg.spatial_kernel_size(:)' 1], numFilters(i), ...
@@ -103,9 +113,10 @@ model.inputSize = inputSize;
 model.classValues = classVals;
 model.classNames = categories(yTrain);
 model.config = cfg;
+model.normalizeInNetwork = cfg.normalize_in_network;
 end
 
-function [XTrain, yTrain, XVal, yVal, hasValidation, mu, sigma] = split_and_normalize(X, yCat, validationRatio)
+function [XTrain, yTrain, XVal, yVal, hasValidation, mu, sigma] = split_and_prepare(X, yCat, validationRatio, normalizeInNetwork)
     hasValidation = numel(yCat) >= 10 && validationRatio > 0;
     if hasValidation
         try
@@ -133,9 +144,16 @@ function [XTrain, yTrain, XVal, yVal, hasValidation, mu, sigma] = split_and_norm
     mu = mean(XTrainRaw, 5, 'omitnan');
     sigma = std(XTrainRaw, 0, 5, 'omitnan');
     sigma(sigma == 0) = 1;
-    XTrain = apply_zscore_samples(XTrainRaw, mu, sigma);
-    if hasValidation
-        XVal = apply_zscore_samples(XVal, mu, sigma);
+    if normalizeInNetwork
+        XTrain = XTrainRaw;
+        if hasValidation
+            XVal = XVal;
+        end
+    else
+        XTrain = apply_zscore_samples(XTrainRaw, mu, sigma);
+        if hasValidation
+            XVal = apply_zscore_samples(XVal, mu, sigma);
+        end
     end
 end
 
@@ -148,6 +166,7 @@ function opts = build_training_options(cfg, hasValidation, XTrain, XVal, yVal)
         'LearnRateSchedule', cfg.learn_rate_schedule, ...
         'LearnRateDropFactor', cfg.learn_rate_drop_factor, ...
         'LearnRateDropPeriod', cfg.learn_rate_drop_period, ...
+        'ExecutionEnvironment', char(cfg.execution_environment), ...
         'Shuffle', 'every-epoch', ...
         'Verbose', cfg.verbose, ...
         'Plots', 'none');
@@ -191,6 +210,11 @@ end
 
 function XNorm = apply_zscore_samples(X, mu, sigma)
     XNorm = (X - mu) ./ sigma;
+    XNorm(~isfinite(XNorm)) = 0;
+end
+
+function XNorm = apply_fixed_zscore_dl(X, mu, sigma)
+    XNorm = (X - cast(mu, 'like', X)) ./ cast(sigma, 'like', X);
     XNorm(~isfinite(XNorm)) = 0;
 end
 

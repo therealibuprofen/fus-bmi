@@ -10,11 +10,12 @@ function class = make_prediction_cnn(testData, model)
 %   class:    numeric class labels, one per sample
 
 [X, nSamples] = normalize_input_shape(testData, model.inputSize);
-X = (X - model.mu) ./ model.sigma;
-X(~isfinite(X)) = 0;
+if ~isfield(model, 'normalizeInNetwork') || ~model.normalizeInNetwork
+    X = (X - model.mu) ./ model.sigma;
+    X(~isfinite(X)) = 0;
+end
 
-yPred = classify(model.net, X);
-yPredStr = string(yPred);
+yPredStr = scores_to_class_names(predict(model.net, X), model.classNames);
 
 class = NaN(size(yPredStr));
 for i = 1:numel(yPredStr)
@@ -65,5 +66,27 @@ function [X, nSamples] = normalize_input_shape(testData, inputSize)
             nSamples = size(X, 5);
         otherwise
             error('不支持的 CNN 测试输入维度：ndims(testData) = %d', ndims(X));
+    end
+end
+
+function yPredStr = scores_to_class_names(scores, classNames)
+    scores = gather_numeric(scores);
+    nClasses = numel(classNames);
+    dims = size(scores);
+    classDim = find(dims == nClasses, 1, 'last');
+    if isempty(classDim)
+        error('CNN predict 输出尺寸与类别数不匹配。');
+    end
+    [~, idx] = max(scores, [], classDim);
+    idx = reshape(gather_numeric(idx), [], 1);
+    yPredStr = string(classNames(idx));
+end
+
+function value = gather_numeric(value)
+    if isa(value, 'dlarray')
+        value = extractdata(value);
+    end
+    if isa(value, 'gpuArray')
+        value = gather(value);
     end
 end

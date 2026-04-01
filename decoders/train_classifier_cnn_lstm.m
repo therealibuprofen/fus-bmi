@@ -22,6 +22,8 @@ p.addParameter('validation_ratio', 0.2);
 p.addParameter('verbose', false, @islogical);
 p.addParameter('random_seed', 42);
 p.addParameter('class_weight_mode', 'balanced');
+p.addParameter('normalize_in_network', true, @islogical);
+p.addParameter('execution_environment', 'auto');
 p.KeepUnmatched = true;
 p.parse(varargin{:});
 cfg = p.Results;
@@ -70,9 +72,11 @@ end
 mu = mean(XTrainRaw, 5, 'omitnan');
 sigma = std(XTrainRaw, 0, 5, 'omitnan');
 sigma(sigma == 0) = 1;
-XTrainRaw = apply_zscore_samples(XTrainRaw, mu, sigma);
-if hasValidation
-    XValRaw = apply_zscore_samples(XValRaw, mu, sigma);
+if ~cfg.normalize_in_network
+    XTrainRaw = apply_zscore_samples(XTrainRaw, mu, sigma);
+    if hasValidation
+        XValRaw = apply_zscore_samples(XValRaw, mu, sigma);
+    end
 end
 
 XTrain = volumes_to_sequence_cells(XTrainRaw);
@@ -93,6 +97,13 @@ lg = addLayers(lg, sequenceFoldingLayer('Name', 'fold'));
 lg = connectLayers(lg, 'input', 'fold/in');
 
 prev = 'fold/out';
+if cfg.normalize_in_network
+    lg = addLayers(lg, functionLayer(@(X) apply_fixed_zscore_dl(X, mu, sigma), ...
+        'Name', 'fixed_zscore', ...
+        'Formattable', true));
+    lg = connectLayers(lg, prev, 'fixed_zscore');
+    prev = 'fixed_zscore';
+end
 for i = 1:numel(numFilters)
     block = [
         convolution2dLayer(cfg.spatial_kernel_size, numFilters(i), ...
@@ -140,6 +151,7 @@ opts = trainingOptions('adam', ...
     'LearnRateSchedule', cfg.learn_rate_schedule, ...
     'LearnRateDropFactor', cfg.learn_rate_drop_factor, ...
     'LearnRateDropPeriod', cfg.learn_rate_drop_period, ...
+    'ExecutionEnvironment', char(cfg.execution_environment), ...
     'Shuffle', 'every-epoch', ...
     'Verbose', cfg.verbose, ...
     'Plots', 'none');
@@ -160,6 +172,7 @@ model.inputSize = inputSize;
 model.classValues = classVals;
 model.classNames = categories(yTrain);
 model.config = cfg;
+model.normalizeInNetwork = cfg.normalize_in_network;
 end
 
 function seq = volumes_to_sequence_cells(X)
@@ -203,6 +216,11 @@ end
 
 function XNorm = apply_zscore_samples(X, mu, sigma)
     XNorm = (X - mu) ./ sigma;
+    XNorm(~isfinite(XNorm)) = 0;
+end
+
+function XNorm = apply_fixed_zscore_dl(X, mu, sigma)
+    XNorm = (X - cast(mu, 'like', X)) ./ cast(sigma, 'like', X);
     XNorm(~isfinite(XNorm)) = 0;
 end
 

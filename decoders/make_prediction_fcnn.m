@@ -16,8 +16,7 @@ end
 X = (X - model.mu) ./ model.sigma;
 X(~isfinite(X)) = 0;
 
-yPred = classify(model.net, X);
-yPredStr = string(yPred);
+yPredStr = scores_to_class_names(predict(model.net, X), model.classNames);
 
 class = NaN(size(yPredStr));
 for i = 1:numel(yPredStr)
@@ -36,4 +35,26 @@ end
 if isrow(testData) || (isvector(testData) && size(testData, 1) == 1)
     class = class(1);
 end
+end
+
+function yPredStr = scores_to_class_names(scores, classNames)
+    scores = gather_numeric(scores);
+    nClasses = numel(classNames);
+    dims = size(scores);
+    classDim = find(dims == nClasses, 1, 'last');
+    if isempty(classDim)
+        error('FCNN predict 输出尺寸与类别数不匹配。');
+    end
+    [~, idx] = max(scores, [], classDim);
+    idx = reshape(gather_numeric(idx), [], 1);
+    yPredStr = string(classNames(idx));
+end
+
+function value = gather_numeric(value)
+    if isa(value, 'dlarray')
+        value = extractdata(value);
+    end
+    if isa(value, 'gpuArray')
+        value = gather(value);
+    end
 end
