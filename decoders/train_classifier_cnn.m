@@ -30,7 +30,9 @@ p.addParameter('verbose', false, @islogical);
 p.addParameter('random_seed', 42);
 p.addParameter('class_weight_mode', 'balanced');
 p.addParameter('normalize_in_network', true, @islogical);
-p.addParameter('execution_environment', 'auto');
+p.addParameter('execution_environment', 'gpu');
+p.addParameter('initial_model', []);
+p.addParameter('fine_tune_epochs', 3);
 p.KeepUnmatched = true;
 p.parse(varargin{:});
 cfg = p.Results;
@@ -102,7 +104,7 @@ layers = [layers
     build_classification_layer(yTrain, cfg.class_weight_mode)];
 
 opts = build_training_options(cfg, hasValidation, XTrain, XVal, yVal);
-net = trainNetwork(XTrain, yTrain, layers, opts);
+[net, warmStartUsed] = train_with_optional_warm_start(XTrain, yTrain, layers, opts, cfg);
 
 model = struct();
 model.method = 'CNN';
@@ -114,6 +116,7 @@ model.classValues = classVals;
 model.classNames = categories(yTrain);
 model.config = cfg;
 model.normalizeInNetwork = cfg.normalize_in_network;
+model.warmStartUsed = warmStartUsed;
 end
 
 function [XTrain, yTrain, XVal, yVal, hasValidation, mu, sigma] = split_and_prepare(X, yCat, validationRatio, normalizeInNetwork)
@@ -158,8 +161,13 @@ function [XTrain, yTrain, XVal, yVal, hasValidation, mu, sigma] = split_and_prep
 end
 
 function opts = build_training_options(cfg, hasValidation, XTrain, XVal, yVal)
+    maxEpochs = cfg.max_epochs;
+    if has_valid_initial_model(cfg.initial_model)
+        maxEpochs = min(cfg.max_epochs, cfg.fine_tune_epochs);
+    end
+
     opts = trainingOptions('adam', ...
-        'MaxEpochs', cfg.max_epochs, ...
+        'MaxEpochs', maxEpochs, ...
         'MiniBatchSize', cfg.mini_batch_size, ...
         'InitialLearnRate', cfg.initial_learn_rate, ...
         'L2Regularization', cfg.l2_regularization, ...
@@ -175,6 +183,25 @@ function opts = build_training_options(cfg, hasValidation, XTrain, XVal, yVal)
         opts.ValidationData = {XVal, yVal};
         opts.ValidationFrequency = max(1, floor(size(XTrain, 5) / cfg.mini_batch_size));
     end
+end
+
+function [net, warmStartUsed] = train_with_optional_warm_start(XTrain, yTrain, layers, opts, cfg)
+    warmStartUsed = false;
+    if has_valid_initial_model(cfg.initial_model)
+        try
+            warmGraph = layerGraph(cfg.initial_model.net);
+            net = trainNetwork(XTrain, yTrain, warmGraph, opts);
+            warmStartUsed = true;
+            return;
+        catch ME
+            warning('CNN warm-start failed, fallback to cold start: %s', ME.message);
+        end
+    end
+    net = trainNetwork(XTrain, yTrain, layers, opts);
+end
+
+function tf = has_valid_initial_model(initialModel)
+    tf = isstruct(initialModel) && isfield(initialModel, 'net') && ~isempty(initialModel.net);
 end
 
 function [X, inputSize, nSamples] = normalize_input_shape(trainData, inputSizeArg)

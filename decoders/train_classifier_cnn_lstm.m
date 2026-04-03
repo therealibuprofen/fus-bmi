@@ -23,7 +23,9 @@ p.addParameter('verbose', false, @islogical);
 p.addParameter('random_seed', 42);
 p.addParameter('class_weight_mode', 'balanced');
 p.addParameter('normalize_in_network', true, @islogical);
-p.addParameter('execution_environment', 'auto');
+p.addParameter('execution_environment', 'gpu');
+p.addParameter('initial_model', []);
+p.addParameter('fine_tune_epochs', 3);
 p.KeepUnmatched = true;
 p.parse(varargin{:});
 cfg = p.Results;
@@ -144,7 +146,7 @@ lg = connectLayers(lg, prev, 'unfold/in');
 lg = connectLayers(lg, 'fold/miniBatchSize', 'unfold/miniBatchSize');
 
 opts = trainingOptions('adam', ...
-    'MaxEpochs', cfg.max_epochs, ...
+    'MaxEpochs', resolve_max_epochs(cfg), ...
     'MiniBatchSize', cfg.mini_batch_size, ...
     'InitialLearnRate', cfg.initial_learn_rate, ...
     'L2Regularization', cfg.l2_regularization, ...
@@ -161,7 +163,7 @@ if hasValidation
     opts.ValidationFrequency = max(1, floor(numel(XTrain) / cfg.mini_batch_size));
 end
 
-net = trainNetwork(XTrain, yTrain, lg, opts);
+[net, warmStartUsed] = train_with_optional_warm_start(XTrain, yTrain, lg, opts, cfg);
 
 model = struct();
 model.method = 'CNN+LSTM';
@@ -173,6 +175,33 @@ model.classValues = classVals;
 model.classNames = categories(yTrain);
 model.config = cfg;
 model.normalizeInNetwork = cfg.normalize_in_network;
+model.warmStartUsed = warmStartUsed;
+end
+
+function maxEpochs = resolve_max_epochs(cfg)
+    maxEpochs = cfg.max_epochs;
+    if has_valid_initial_model(cfg.initial_model)
+        maxEpochs = min(cfg.max_epochs, cfg.fine_tune_epochs);
+    end
+end
+
+function [net, warmStartUsed] = train_with_optional_warm_start(XTrain, yTrain, lg, opts, cfg)
+    warmStartUsed = false;
+    if has_valid_initial_model(cfg.initial_model)
+        try
+            warmGraph = layerGraph(cfg.initial_model.net);
+            net = trainNetwork(XTrain, yTrain, warmGraph, opts);
+            warmStartUsed = true;
+            return;
+        catch ME
+            warning('CNN+LSTM warm-start failed, fallback to cold start: %s', ME.message);
+        end
+    end
+    net = trainNetwork(XTrain, yTrain, lg, opts);
+end
+
+function tf = has_valid_initial_model(initialModel)
+    tf = isstruct(initialModel) && isfield(initialModel, 'net') && ~isempty(initialModel.net);
 end
 
 function seq = volumes_to_sequence_cells(X)

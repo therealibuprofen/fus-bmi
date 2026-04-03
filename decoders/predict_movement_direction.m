@@ -131,7 +131,8 @@ else
         'learn_rate_drop_period', 15, ...
         'class_weight_mode', 'balanced', ...
         'normalize_in_network', true, ...
-        'execution_environment', 'auto' ...
+        'execution_environment', 'gpu', ...
+        'fine_tune_epochs', 3 ...
     );
 end
 
@@ -153,7 +154,8 @@ else
         'learn_rate_drop_period', 15, ...
         'class_weight_mode', 'balanced', ...
         'normalize_in_network', true, ...
-        'execution_environment', 'auto' ...
+        'execution_environment', 'gpu', ...
+        'fine_tune_epochs', 3 ...
     );
 end
 
@@ -304,8 +306,9 @@ function args = cnn_train_args(p)
     if ~isfield(p, 'normalize_in_network') || isempty(p.normalize_in_network)
         p.normalize_in_network = true;
     end
-    if ~isfield(p, 'execution_environment') || isempty(p.execution_environment)
-        p.execution_environment = 'auto';
+    p.execution_environment = 'gpu';
+    if ~isfield(p, 'fine_tune_epochs') || isempty(p.fine_tune_epochs)
+        p.fine_tune_epochs = 3;
     end
     args = { ...
         'num_filters', p.num_filters, ...
@@ -322,7 +325,8 @@ function args = cnn_train_args(p)
         'learn_rate_drop_period', p.learn_rate_drop_period, ...
         'class_weight_mode', p.class_weight_mode, ...
         'normalize_in_network', p.normalize_in_network, ...
-        'execution_environment', p.execution_environment ...
+        'execution_environment', p.execution_environment, ...
+        'fine_tune_epochs', p.fine_tune_epochs ...
     };
 end
 
@@ -330,8 +334,9 @@ function args = cnn_lstm_train_args(p)
     if ~isfield(p, 'normalize_in_network') || isempty(p.normalize_in_network)
         p.normalize_in_network = true;
     end
-    if ~isfield(p, 'execution_environment') || isempty(p.execution_environment)
-        p.execution_environment = 'auto';
+    p.execution_environment = 'gpu';
+    if ~isfield(p, 'fine_tune_epochs') || isempty(p.fine_tune_epochs)
+        p.fine_tune_epochs = 3;
     end
     args = { ...
         'num_filters', p.num_filters, ...
@@ -348,7 +353,8 @@ function args = cnn_lstm_train_args(p)
         'learn_rate_drop_period', p.learn_rate_drop_period, ...
         'class_weight_mode', p.class_weight_mode, ...
         'normalize_in_network', p.normalize_in_network, ...
-        'execution_environment', p.execution_environment ...
+        'execution_environment', p.execution_environment, ...
+        'fine_tune_epochs', p.fine_tune_epochs ...
     };
 end
 
@@ -393,15 +399,15 @@ if phase(k) == 4 && ...
                 elseif is_cnn_decoder
                     cnn_args = cnn_train_args(cnn_params);
                     model_horz = train_decoder(train_tensor, trainLabels_horz, ...
-                        'method', decoder_method, cnn_args{:});
+                        'method', decoder_method, 'initial_model', model_horz, cnn_args{:});
                     model_vert = train_decoder(train_tensor, trainLabels_vert, ...
-                        'method', decoder_method, cnn_args{:});
+                        'method', decoder_method, 'initial_model', model_vert, cnn_args{:});
                 elseif is_cnn_lstm_decoder
                     cnn_lstm_args = cnn_lstm_train_args(cnn_lstm_params);
                     model_horz = train_decoder(train_tensor, trainLabels_horz, ...
-                        'method', decoder_method, cnn_lstm_args{:});
+                        'method', decoder_method, 'initial_model', model_horz, cnn_lstm_args{:});
                     model_vert = train_decoder(train_tensor, trainLabels_vert, ...
-                        'method', decoder_method, cnn_lstm_args{:});
+                        'method', decoder_method, 'initial_model', model_vert, cnn_lstm_args{:});
                 else
                     model_horz = train_decoder(train, ...
                         trainLabels_horz, ...
@@ -445,10 +451,10 @@ if phase(k) == 4 && ...
                     model = train_decoder(train, trainLabels, 'method', decoder_method, fcnn_args{:});
                 elseif is_cnn_decoder
                     cnn_args = cnn_train_args(cnn_params);
-                    model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, cnn_args{:});
+                    model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, 'initial_model', model, cnn_args{:});
                 elseif is_cnn_lstm_decoder
                     cnn_lstm_args = cnn_lstm_train_args(cnn_lstm_params);
-                    model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, cnn_lstm_args{:});
+                    model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, 'initial_model', model, cnn_lstm_args{:});
                 else
                     model = train_decoder(train, trainLabels, 'method', decoder_method);
                 end
@@ -560,15 +566,15 @@ if data.add_all_trials_to_training_set
                         elseif is_cnn_decoder
                             cnn_args = cnn_train_args(cnn_params);
                             model_horz = train_decoder(train_tensor, trainLabels_horz, ...
-                                'method', decoder_method, cnn_args{:});
+                                'method', decoder_method, 'initial_model', model_horz, cnn_args{:});
                             model_vert = train_decoder(train_tensor, trainLabels_vert, ...
-                                'method', decoder_method, cnn_args{:});
+                                'method', decoder_method, 'initial_model', model_vert, cnn_args{:});
                         elseif is_cnn_lstm_decoder
                             cnn_lstm_args = cnn_lstm_train_args(cnn_lstm_params);
                             model_horz = train_decoder(train_tensor, trainLabels_horz, ...
-                                'method', decoder_method, cnn_lstm_args{:});
+                                'method', decoder_method, 'initial_model', model_horz, cnn_lstm_args{:});
                             model_vert = train_decoder(train_tensor, trainLabels_vert, ...
-                                'method', decoder_method, cnn_lstm_args{:});
+                                'method', decoder_method, 'initial_model', model_vert, cnn_lstm_args{:});
                         else
                             model_horz = train_decoder(train, ...
                                 trainLabels_horz, ...
@@ -589,10 +595,10 @@ if data.add_all_trials_to_training_set
                             model = train_decoder(train, trainLabels, 'method', decoder_method, fcnn_args{:});
                         elseif is_cnn_decoder
                             cnn_args = cnn_train_args(cnn_params);
-                            model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, cnn_args{:});
+                            model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, 'initial_model', model, cnn_args{:});
                         elseif is_cnn_lstm_decoder
                             cnn_lstm_args = cnn_lstm_train_args(cnn_lstm_params);
-                            model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, cnn_lstm_args{:});
+                            model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, 'initial_model', model, cnn_lstm_args{:});
                         else
                             model = train_decoder(train, trainLabels, 'method', decoder_method);
                         end
@@ -654,15 +660,15 @@ else % Only add successful trials
                         elseif is_cnn_decoder
                             cnn_args = cnn_train_args(cnn_params);
                             model_horz = train_decoder(train_tensor, trainLabels_horz, ...
-                                'method', decoder_method, cnn_args{:});
+                                'method', decoder_method, 'initial_model', model_horz, cnn_args{:});
                             model_vert = train_decoder(train_tensor, trainLabels_vert, ...
-                                'method', decoder_method, cnn_args{:});
+                                'method', decoder_method, 'initial_model', model_vert, cnn_args{:});
                         elseif is_cnn_lstm_decoder
                             cnn_lstm_args = cnn_lstm_train_args(cnn_lstm_params);
                             model_horz = train_decoder(train_tensor, trainLabels_horz, ...
-                                'method', decoder_method, cnn_lstm_args{:});
+                                'method', decoder_method, 'initial_model', model_horz, cnn_lstm_args{:});
                             model_vert = train_decoder(train_tensor, trainLabels_vert, ...
-                                'method', decoder_method, cnn_lstm_args{:});
+                                'method', decoder_method, 'initial_model', model_vert, cnn_lstm_args{:});
                         else
                             model_horz = train_decoder(train, ...
                                 trainLabels_horz, ...
@@ -683,10 +689,10 @@ else % Only add successful trials
                             model = train_decoder(train, trainLabels, 'method', decoder_method, fcnn_args{:});
                         elseif is_cnn_decoder
                             cnn_args = cnn_train_args(cnn_params);
-                            model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, cnn_args{:});
+                            model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, 'initial_model', model, cnn_args{:});
                         elseif is_cnn_lstm_decoder
                             cnn_lstm_args = cnn_lstm_train_args(cnn_lstm_params);
-                            model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, cnn_lstm_args{:});
+                            model = train_decoder(train_tensor, trainLabels, 'method', decoder_method, 'initial_model', model, cnn_lstm_args{:});
                         else
                             model = train_decoder(train, trainLabels, 'method', decoder_method);
                         end
