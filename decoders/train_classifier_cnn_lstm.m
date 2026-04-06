@@ -71,9 +71,7 @@ else
     yVal = categorical();
 end
 
-mu = mean(XTrainRaw, 5, 'omitnan');
-sigma = std(XTrainRaw, 0, 5, 'omitnan');
-sigma(sigma == 0) = 1;
+[mu, sigma] = compute_nan_mean_std_dim5(XTrainRaw);
 if ~cfg.normalize_in_network
     XTrainRaw = apply_zscore_samples(XTrainRaw, mu, sigma);
     if hasValidation
@@ -213,7 +211,7 @@ function seq = volumes_to_sequence_cells(X)
 end
 
 function [X, inputSize, nSamples] = normalize_input_shape(trainData, inputSizeArg)
-    X = double(trainData);
+    X = single(trainData);
     switch ndims(X)
         case 2
             if isempty(inputSizeArg)
@@ -264,4 +262,38 @@ function layer = build_classification_layer(yTrain, mode)
         otherwise
             layer = classificationLayer('Name', 'classOutput', 'Classes', classes);
     end
+end
+
+function [mu, sigma] = compute_nan_mean_std_dim5(X)
+    % Memory-efficient mean/std over sample dimension (dim 5) while omitting NaNs.
+    nSamples = size(X, 5);
+    statSize = size(X(:, :, :, :, 1));
+    sumX = zeros(statSize, 'double');
+    sumX2 = zeros(statSize, 'double');
+    count = zeros(statSize, 'double');
+
+    for i = 1:nSamples
+        Xi = double(X(:, :, :, :, i));
+        valid = ~isnan(Xi);
+        Xi(~valid) = 0;
+        sumX = sumX + Xi;
+        sumX2 = sumX2 + Xi.^2;
+        count = count + double(valid);
+    end
+
+    muDouble = zeros(statSize, 'double');
+    hasData = count > 0;
+    muDouble(hasData) = sumX(hasData) ./ count(hasData);
+
+    varDouble = zeros(statSize, 'double');
+    enoughData = count > 1;
+    varNumerator = sumX2(enoughData) - (sumX(enoughData).^2) ./ count(enoughData);
+    varNumerator = max(varNumerator, 0);
+    varDouble(enoughData) = varNumerator ./ (count(enoughData) - 1);
+
+    sigmaDouble = sqrt(varDouble);
+    sigmaDouble(~isfinite(sigmaDouble) | sigmaDouble == 0) = 1;
+
+    mu = cast(muDouble, 'like', X);
+    sigma = cast(sigmaDouble, 'like', X);
 end
