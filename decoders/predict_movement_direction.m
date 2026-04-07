@@ -178,7 +178,13 @@ end
 k=k+1;
 t(k) = now;
 t_elapsed(k) = etime(datevec(now), datevec(t(1)));
-Dop(:,:,k) = data.data;
+if isempty(Dop)
+    frame0 = single(data.data);
+    [h0, w0] = size(frame0);
+    Dop = zeros(h0, w0, buffer_windows, 'single');
+end
+frameWriteIdx = mod(k-1, buffer_windows) + 1;
+Dop(:, :, frameWriteIdx) = single(data.data);
 
 if phase_in == 2
     % Reset for each trial
@@ -209,9 +215,7 @@ else
 end
 
 %%  separate the data in the buffer (using windows)
-t_ind = false(size(t_elapsed));
-start_ind = max(1, length(t_ind)-buffer_windows);
-t_ind(start_ind:end) = true;
+data_buff = get_recent_doppler_buffer(Dop, k, buffer_windows);
 
 %% preprocess data (only used on this phase combination)
 % Phase 4 = Memory
@@ -222,7 +226,6 @@ if phase(k) == 4 && ...
         all(ismember(phase(k-num_frames_in_memory+1:k), 4)) &&...
         all(~ismember(phase(k-num_frames_in_memory), 4)) && ...
         size(train,1) > nTrials_before_train
-    data_buff = Dop(:, :, t_ind);           % data in buffer
     data_buff = preprocess_data(data_buff,...
         'zscore',true,...
         'spatial_filter', {filter_type, filter_size, filter_sigma});
@@ -234,7 +237,6 @@ end
 
 % Phase 8 = Success ITI. Prepare for the training set.
 if length(phase) > 2 && ismember(phase(k), [8 9]) && ~ismember(phase(k-1), [8 9])
-    data_buff = Dop(:, :, t_ind);           % data in buffer
     data_buff = preprocess_data(data_buff,...
         'zscore',true,...
         'spatial_filter', {filter_type, filter_size, filter_sigma});
@@ -746,7 +748,7 @@ end
         k=1;                    % acquisition number (int)
         t(k) = now;             % absolute time (time)
         t_elapsed(k) = 0;       % elapsed time in sec (float)
-        Dop(:,:,k) = data.data;      % data in time series format
+        Dop = [];               % fixed-size ring buffer allocated on first update
         label(k) = 0;       % class label (int)
         buffer_windows = 60;    % windows
         phase(k) = 1;           % phase number (int)
@@ -865,6 +867,13 @@ end
             warning('Using previous data session for training set. Make sure you have already run the alignment script');
         end
     end
+
+function data_buff = get_recent_doppler_buffer(DopBuf, kNow, windowLen)
+    nWritten = max(kNow - 1, 1);
+    nAvail = min(nWritten, windowLen);
+    idx = mod((kNow - nAvail):(kNow - 1), windowLen) + 1;
+    data_buff = DopBuf(:, :, idx);
+end
 
 function train_tensor_out = reshape_flattened_trials_to_tensor(train_in, m, n, nFrames)
     if size(train_in, 2) ~= m * n * nFrames
