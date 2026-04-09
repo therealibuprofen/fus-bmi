@@ -49,6 +49,7 @@ persistent class_predicted_horz class_predicted_vert class_true_horz class_true_
     custom_counting_matrix lookup_table_for_horz lookup_table_for_vert ...
     model_horz model_vert
 persistent prediction_log_printed
+persistent recent_prediction_buffer
 
 %% Specifying task and parameters to run
 
@@ -159,6 +160,42 @@ else
     );
 end
 
+% Optional HRF-aware decoding params (kept lightweight for real-time use)
+if isfield(data, 'hrf_params') && ~isempty(data.hrf_params)
+    hrf_params = data.hrf_params;
+else
+    hrf_params = struct( ...
+        'enabled', true, ...
+        'lag_frames', [0 2 4], ...
+        'train_lag_frames', 2, ...
+        'temporal_weighting', true, ...
+        'weight_power', 1.5 ...
+    );
+end
+
+if ~isfield(hrf_params, 'enabled') || isempty(hrf_params.enabled)
+    hrf_params.enabled = true;
+end
+if ~isfield(hrf_params, 'lag_frames') || isempty(hrf_params.lag_frames)
+    hrf_params.lag_frames = [0 2 4];
+end
+if ~isfield(hrf_params, 'train_lag_frames') || isempty(hrf_params.train_lag_frames)
+    hrf_params.train_lag_frames = 2;
+end
+if ~isfield(hrf_params, 'temporal_weighting') || isempty(hrf_params.temporal_weighting)
+    hrf_params.temporal_weighting = true;
+end
+if ~isfield(hrf_params, 'weight_power') || isempty(hrf_params.weight_power)
+    hrf_params.weight_power = 1.5;
+end
+
+if isfield(data, 'prediction_smoothing_window') && ~isempty(data.prediction_smoothing_window)
+    prediction_smoothing_window = data.prediction_smoothing_window;
+else
+    prediction_smoothing_window = 1;
+end
+prediction_smoothing_window = max(1, round(prediction_smoothing_window));
+
 nTrials_before_train = data.nTrials_before_train;
 
 filter_type = data.filter_type;
@@ -189,6 +226,7 @@ Dop(:, :, frameWriteIdx) = single(data.data);
 if phase_in == 2
     % Reset for each trial
     num_frames_in_memory = [];
+    recent_prediction_buffer = [];
 end
 
 switch task_type
@@ -364,6 +402,7 @@ end
 %% BCI
 %%%%% ONLINE PREDICTION %%%%%
 current_prediction = [];
+raw_prediction = [];
 
 % This defines the conditions for making a prediction.
 if phase(k) == 4 && ...
@@ -372,13 +411,14 @@ if phase(k) == 4 && ...
         all(~ismember(phase(k-num_frames_in_memory), 4)) && ...
         size(train,1) > nTrials_before_train
     
-    % create the test set
-    test_volume = data_buff(:, :, end-training_set_size+1:end);
-    if is_tensor_decoder
-        test = test_volume;
+    enable_hrf_for_decoder = hrf_params.enabled && is_tensor_decoder;
+    valid_lags = resolve_valid_lag_frames(hrf_params.lag_frames, num_frames_in_memory, training_set_size);
+    if enable_hrf_for_decoder
+        if isempty(valid_lags)
+            valid_lags = 0;
+        end
     else
-        new_test = reshape(test_volume, m, n*training_set_size);
-        test = reshape(new_test, 1, []);
+        valid_lags = 0;
     end
     
     % make the prediction using `train_classifier` and
@@ -425,13 +465,25 @@ if phase(k) == 4 && ...
                 prediction_log_printed = true;
             end
             
-            class_horz = predict_decoder(test, model_horz);
-            class_vert = predict_decoder(test, model_vert);
+            horz_votes = NaN(1, numel(valid_lags));
+            vert_votes = NaN(1, numel(valid_lags));
+            for lag_i = 1:numel(valid_lags)
+                test_volume = extract_lagged_window(data_buff, training_set_size, valid_lags(lag_i));
+                if enable_hrf_for_decoder
+                    test_volume = apply_hrf_temporal_weighting(test_volume, hrf_params);
+                end
+                test = format_decoder_input(test_volume, is_tensor_decoder, m, n, training_set_size);
+                horz_votes(lag_i) = predict_decoder(test, model_horz);
+                vert_votes(lag_i) = predict_decoder(test, model_vert);
+            end
+            class_horz = majority_vote(horz_votes);
+            class_vert = majority_vote(vert_votes);
             
             
             % Combine horizontal and vertical prediction to make single
             % predicted class for 8-directions.
-            current_prediction = class_horz + 3 * (class_vert-1);
+            raw_prediction = class_horz + 3 * (class_vert-1);
+            current_prediction = smooth_prediction(raw_prediction, prediction_smoothing_window);
             
             % Add prediction to log.
             class_predicted_horz = cat(2, class_predicted_horz, class_horz);
@@ -467,7 +519,17 @@ if phase(k) == 4 && ...
                 fprintf('[predict_movement_direction] Predicting using %s for 2 tgt\n', decoder_method);
                 prediction_log_printed = true;
             end
-            current_prediction = predict_decoder(test, model);
+            class_votes = NaN(1, numel(valid_lags));
+            for lag_i = 1:numel(valid_lags)
+                test_volume = extract_lagged_window(data_buff, training_set_size, valid_lags(lag_i));
+                if enable_hrf_for_decoder
+                    test_volume = apply_hrf_temporal_weighting(test_volume, hrf_params);
+                end
+                test = format_decoder_input(test_volume, is_tensor_decoder, m, n, training_set_size);
+                class_votes(lag_i) = predict_decoder(test, model);
+            end
+            raw_prediction = majority_vote(class_votes);
+            current_prediction = smooth_prediction(raw_prediction, prediction_smoothing_window);
             
             class_predicted= cat(2, class_predicted, current_prediction);
     end
@@ -532,7 +594,14 @@ if data.add_all_trials_to_training_set
         training_window_end = memory_start_ind_relative_to_buffer_end - num_frames_in_memory+1;
         
         
-        new_train_volume = data_buff(:, :, end-training_window_start:end-training_window_end);
+        max_lag_for_train = max(0, num_frames_in_memory - training_set_size);
+        train_lag = resolve_training_lag(hrf_params.train_lag_frames, max_lag_for_train, hrf_params.enabled && is_tensor_decoder);
+        train_start = training_window_start + train_lag;
+        train_end = training_window_end + train_lag;
+        new_train_volume = data_buff(:, :, end-train_start:end-train_end);
+        if hrf_params.enabled && is_tensor_decoder
+            new_train_volume = apply_hrf_temporal_weighting(new_train_volume, hrf_params);
+        end
         new_train = reshape(new_train_volume, m, n * training_set_size);
         train = cat(1, train, reshape(new_train, 1, []));
         if is_tensor_decoder
@@ -626,7 +695,14 @@ else % Only add successful trials
         training_window_start = memory_start_ind_relative_to_buffer_end - num_frames_in_memory + training_set_size;
         training_window_end = memory_start_ind_relative_to_buffer_end - num_frames_in_memory+1;
         
-        new_train_volume = data_buff(:, :, end-training_window_start:end-training_window_end);
+        max_lag_for_train = max(0, num_frames_in_memory - training_set_size);
+        train_lag = resolve_training_lag(hrf_params.train_lag_frames, max_lag_for_train, hrf_params.enabled && is_tensor_decoder);
+        train_start = training_window_start + train_lag;
+        train_end = training_window_end + train_lag;
+        new_train_volume = data_buff(:, :, end-train_start:end-train_end);
+        if hrf_params.enabled && is_tensor_decoder
+            new_train_volume = apply_hrf_temporal_weighting(new_train_volume, hrf_params);
+        end
         new_train = reshape(new_train_volume, m, n * training_set_size);
         train = cat(1, train, reshape(new_train, 1, []));
         if is_tensor_decoder
@@ -789,11 +865,13 @@ end
                 'buffer_windows', 'framerate', 'nTrials_before_train', ...
                 'training_set_size', ...
                 'add_all_trials_to_training_set', 'filter_type', ...
-                'filter_size', 'filter_sigma');
+                'filter_size', 'filter_sigma', ...
+                'hrf_params', 'prediction_smoothing_window');
         end
         
         % Initialize a dictionary
         prediction_log_printed = false;
+        recent_prediction_buffer = [];
         % Create Container (equivalent to python dictionary)
         % These state names are the ones in Python. They won't perfectly
         % match with the state names from MATLAB.
@@ -885,6 +963,105 @@ function train_tensor_out = reshape_flattened_trials_to_tensor(train_in, m, n, n
     for t = 1:nTrials
         train_tensor_out(:, :, :, t) = reshape(train_in(t, :), m, n, nFrames);
     end
+end
+
+function valid_lags = resolve_valid_lag_frames(configuredLags, memLenFrames, winSize)
+    if nargin < 1 || isempty(configuredLags)
+        configuredLags = 0;
+    end
+    maxLag = max(0, memLenFrames - winSize);
+    candidate = round(double(configuredLags(:)'));
+    candidate = candidate(isfinite(candidate));
+    candidate = candidate(candidate >= 0 & candidate <= maxLag);
+    if isempty(candidate)
+        valid_lags = 0;
+    else
+        valid_lags = unique(candidate, 'stable');
+    end
+end
+
+function lag = resolve_training_lag(configuredLag, maxLag, enabled)
+    if nargin < 3 || ~enabled
+        lag = 0;
+        return;
+    end
+    lag = round(double(configuredLag));
+    if ~isfinite(lag)
+        lag = 0;
+    end
+    lag = min(max(lag, 0), maxLag);
+end
+
+function vol = extract_lagged_window(data_buff, winSize, lagFrames)
+    nFrames = size(data_buff, 3);
+    lagFrames = max(0, round(double(lagFrames)));
+    endIdx = nFrames - lagFrames;
+    startIdx = endIdx - winSize + 1;
+    if startIdx < 1 || endIdx > nFrames
+        error('Lag window extraction out of range: start=%d, end=%d, nFrames=%d', startIdx, endIdx, nFrames);
+    end
+    vol = data_buff(:, :, startIdx:endIdx);
+end
+
+function test = format_decoder_input(test_volume, isTensorDecoder, m, n, winSize)
+    if isTensorDecoder
+        test = test_volume;
+    else
+        new_test = reshape(test_volume, m, n * winSize);
+        test = reshape(new_test, 1, []);
+    end
+end
+
+function vol_out = apply_hrf_temporal_weighting(vol_in, hrf_cfg)
+    vol_out = vol_in;
+    if ~isstruct(hrf_cfg) || ~isfield(hrf_cfg, 'enabled') || ~hrf_cfg.enabled
+        return;
+    end
+    if ~isfield(hrf_cfg, 'temporal_weighting') || ~hrf_cfg.temporal_weighting
+        return;
+    end
+    powerVal = 1.5;
+    if isfield(hrf_cfg, 'weight_power') && ~isempty(hrf_cfg.weight_power)
+        powerVal = double(hrf_cfg.weight_power);
+    end
+    nT = size(vol_in, 3);
+    t = linspace(0, 1, nT);
+    w = (t + eps) .^ powerVal;
+    w = w / mean(w);
+    vol_out = vol_in .* reshape(cast(w, 'like', vol_in), 1, 1, []);
+end
+
+function v = majority_vote(votes)
+    votes = votes(:)';
+    votes = votes(isfinite(votes));
+    if isempty(votes)
+        v = NaN;
+        return;
+    end
+    u = unique(votes, 'stable');
+    counts = zeros(size(u));
+    for i = 1:numel(u)
+        counts(i) = sum(votes == u(i));
+    end
+    [~, idx] = max(counts);
+    v = u(idx);
+end
+
+function pred_out = smooth_prediction(pred_in, winSize)
+    pred_out = pred_in;
+    if ~isfinite(pred_in) || winSize <= 1
+        return;
+    end
+    if isempty(recent_prediction_buffer)
+        recent_prediction_buffer = pred_in;
+        pred_out = pred_in;
+        return;
+    end
+    recent_prediction_buffer = [recent_prediction_buffer, pred_in];
+    if numel(recent_prediction_buffer) > winSize
+        recent_prediction_buffer = recent_prediction_buffer(end-winSize+1:end);
+    end
+    pred_out = majority_vote(recent_prediction_buffer);
 end
 
 %% plotting functions % % % % % % % % % % % % % % % % % % % % % % %
