@@ -15,6 +15,7 @@ p = inputParser;
 p.addParameter('input_size', []);
 p.addParameter('num_filters', [8 16 32]);
 p.addParameter('temporal_kernel_size', 3);
+p.addParameter('temporal_dilation_factor', 1);
 p.addParameter('spatial_kernel_size', [3 3]);
 p.addParameter('dropout', 0.2);
 p.addParameter('batch_norm', true);
@@ -82,6 +83,7 @@ for i = 1:numel(numFilters)
     end
     layers = [layers
         convolution3dLayer([1 1 cfg.temporal_kernel_size], numFilters(i), ...
+            'DilationFactor', [1 1 max(1, round(cfg.temporal_dilation_factor))], ...
             'Padding', 'same', 'Name', sprintf('temporal_conv%d', i))
         reluLayer('Name', sprintf('temporal_relu%d', i))];
     if cfg.batch_norm

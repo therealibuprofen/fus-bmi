@@ -8,8 +8,17 @@ if ~isfield(model, 'normalizeInNetwork') || ~model.normalizeInNetwork
 end
 
 seq = cell(nSamples, 1);
+poolSize = 1;
+if isfield(model, 'config') && isstruct(model.config) && isfield(model.config, 'temporal_pool_size') ...
+        && ~isempty(model.config.temporal_pool_size)
+    poolSize = max(1, round(double(model.config.temporal_pool_size)));
+end
 for i = 1:nSamples
-    seq{i} = permute(X(:, :, :, :, i), [1 2 4 3]);
+    Xi = X(:, :, :, :, i);
+    if poolSize > 1
+        Xi = temporal_average_pool_volume(Xi, poolSize);
+    end
+    seq{i} = permute(Xi, [1 2 4 3]);
 end
 
 yPredStr = scores_to_class_names(predict(model.net, seq), model.classNames);
@@ -84,5 +93,16 @@ function value = gather_numeric(value)
     end
     if isa(value, 'gpuArray')
         value = gather(value);
+    end
+end
+
+function Xpool = temporal_average_pool_volume(X, poolSize)
+    nT = size(X, 3);
+    nBlocks = ceil(nT / poolSize);
+    Xpool = zeros(size(X, 1), size(X, 2), nBlocks, size(X, 4), 'like', X);
+    for b = 1:nBlocks
+        tStart = (b - 1) * poolSize + 1;
+        tEnd = min(nT, b * poolSize);
+        Xpool(:, :, b, :) = mean(X(:, :, tStart:tEnd, :), 3, 'omitnan');
     end
 end

@@ -11,6 +11,7 @@ p.addParameter('spatial_kernel_size', [3 3]);
 p.addParameter('dropout', 0.2);
 p.addParameter('batch_norm', true);
 p.addParameter('lstm_units', 64);
+p.addParameter('temporal_pool_size', 1);
 p.addParameter('max_epochs', 60);
 p.addParameter('mini_batch_size', 8);
 p.addParameter('initial_learn_rate', 1e-3);
@@ -79,9 +80,9 @@ if ~cfg.normalize_in_network
     end
 end
 
-XTrain = volumes_to_sequence_cells(XTrainRaw);
+XTrain = volumes_to_sequence_cells(XTrainRaw, cfg.temporal_pool_size);
 if hasValidation
-    XVal = volumes_to_sequence_cells(XValRaw);
+    XVal = volumes_to_sequence_cells(XValRaw, cfg.temporal_pool_size);
 end
 
 numClasses = numel(categories(yTrain));
@@ -202,11 +203,27 @@ function tf = has_valid_initial_model(initialModel)
     tf = isstruct(initialModel) && isfield(initialModel, 'net') && ~isempty(initialModel.net);
 end
 
-function seq = volumes_to_sequence_cells(X)
+function seq = volumes_to_sequence_cells(X, poolSize)
     nSamples = size(X, 5);
     seq = cell(nSamples, 1);
+    poolSize = max(1, round(double(poolSize)));
     for i = 1:nSamples
-        seq{i} = permute(X(:, :, :, :, i), [1 2 4 3]);
+        Xi = X(:, :, :, :, i);
+        if poolSize > 1
+            Xi = temporal_average_pool_volume(Xi, poolSize);
+        end
+        seq{i} = permute(Xi, [1 2 4 3]);
+    end
+end
+
+function Xpool = temporal_average_pool_volume(X, poolSize)
+    nT = size(X, 3);
+    nBlocks = ceil(nT / poolSize);
+    Xpool = zeros(size(X, 1), size(X, 2), nBlocks, size(X, 4), 'like', X);
+    for b = 1:nBlocks
+        tStart = (b - 1) * poolSize + 1;
+        tEnd = min(nT, b * poolSize);
+        Xpool(:, :, b, :) = mean(X(:, :, tStart:tEnd, :), 3, 'omitnan');
     end
 end
 
