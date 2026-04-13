@@ -119,13 +119,12 @@ if isfield(data, 'cnn_params') && ~isempty(data.cnn_params)
 else
     cnn_params = struct( ...
         'num_filters', [16 32 64], ...
-        'temporal_kernel_size', 5, ...
-        'temporal_dilation_factor', 1, ...
+        'temporal_kernel_size', 2, ...
         'spatial_kernel_size', [3 3], ...
-        'dropout', 0.4, ...
+        'dropout', 0.3, ...
         'batch_norm', true, ...
         'max_epochs', 50, ...
-        'mini_batch_size', 16, ...
+        'mini_batch_size', 8, ...
         'initial_learn_rate', 1e-3, ...
         'l2_regularization', 1e-4, ...
         'learn_rate_schedule', 'piecewise', ...
@@ -144,12 +143,11 @@ else
     cnn_lstm_params = struct( ...
         'num_filters', [8 16], ...
         'spatial_kernel_size', [3 3], ...
-        'dropout', 0.4, ...
+        'dropout', 0.2, ...
         'batch_norm', true, ...
         'lstm_units', 64, ...
-        'temporal_pool_size', 2, ...
         'max_epochs', 60, ...
-        'mini_batch_size', 16, ...
+        'mini_batch_size', 8, ...
         'initial_learn_rate', 1e-3, ...
         'l2_regularization', 1e-4, ...
         'learn_rate_schedule', 'piecewise', ...
@@ -167,25 +165,25 @@ if isfield(data, 'hrf_params') && ~isempty(data.hrf_params)
     hrf_params = data.hrf_params;
 else
     hrf_params = struct( ...
-        'enabled', false, ...
-        'lag_frames', 0, ...
-        'train_lag_frames', 0, ...
-        'temporal_weighting', false, ...
+        'enabled', true, ...
+        'lag_frames', [0 2 4], ...
+        'train_lag_frames', 2, ...
+        'temporal_weighting', true, ...
         'weight_power', 1.5 ...
     );
 end
 
 if ~isfield(hrf_params, 'enabled') || isempty(hrf_params.enabled)
-    hrf_params.enabled = false;
+    hrf_params.enabled = true;
 end
 if ~isfield(hrf_params, 'lag_frames') || isempty(hrf_params.lag_frames)
-    hrf_params.lag_frames = 0;
+    hrf_params.lag_frames = [0 2 4];
 end
 if ~isfield(hrf_params, 'train_lag_frames') || isempty(hrf_params.train_lag_frames)
-    hrf_params.train_lag_frames = 0;
+    hrf_params.train_lag_frames = 2;
 end
 if ~isfield(hrf_params, 'temporal_weighting') || isempty(hrf_params.temporal_weighting)
-    hrf_params.temporal_weighting = false;
+    hrf_params.temporal_weighting = true;
 end
 if ~isfield(hrf_params, 'weight_power') || isempty(hrf_params.weight_power)
     hrf_params.weight_power = 1.5;
@@ -197,42 +195,6 @@ else
     prediction_smoothing_window = 1;
 end
 prediction_smoothing_window = max(1, round(prediction_smoothing_window));
-
-% HRF deconvolution settings (preferred over heuristic HRF weighting).
-if isfield(data, 'hrf_deconv_params') && ~isempty(data.hrf_deconv_params)
-    hrf_deconv_params = data.hrf_deconv_params;
-else
-    hrf_deconv_params = struct( ...
-        'enabled', true, ...
-        'kernel_length_sec', 10, ...
-        'peak_delay_sec', 3.5, ...
-        'undershoot_delay_sec', 8.0, ...
-        'undershoot_scale', 0.2, ...
-        'wiener_lambda', 0.08, ...
-        'min_buffer_frames', 12 ...
-    );
-end
-if ~isfield(hrf_deconv_params, 'enabled') || isempty(hrf_deconv_params.enabled)
-    hrf_deconv_params.enabled = true;
-end
-if ~isfield(hrf_deconv_params, 'kernel_length_sec') || isempty(hrf_deconv_params.kernel_length_sec)
-    hrf_deconv_params.kernel_length_sec = 10;
-end
-if ~isfield(hrf_deconv_params, 'peak_delay_sec') || isempty(hrf_deconv_params.peak_delay_sec)
-    hrf_deconv_params.peak_delay_sec = 3.5;
-end
-if ~isfield(hrf_deconv_params, 'undershoot_delay_sec') || isempty(hrf_deconv_params.undershoot_delay_sec)
-    hrf_deconv_params.undershoot_delay_sec = 8.0;
-end
-if ~isfield(hrf_deconv_params, 'undershoot_scale') || isempty(hrf_deconv_params.undershoot_scale)
-    hrf_deconv_params.undershoot_scale = 0.2;
-end
-if ~isfield(hrf_deconv_params, 'wiener_lambda') || isempty(hrf_deconv_params.wiener_lambda)
-    hrf_deconv_params.wiener_lambda = 0.08;
-end
-if ~isfield(hrf_deconv_params, 'min_buffer_frames') || isempty(hrf_deconv_params.min_buffer_frames)
-    hrf_deconv_params.min_buffer_frames = 12;
-end
 
 nTrials_before_train = data.nTrials_before_train;
 
@@ -388,13 +350,9 @@ function args = cnn_train_args(p)
     if ~isfield(p, 'fine_tune_epochs') || isempty(p.fine_tune_epochs)
         p.fine_tune_epochs = 3;
     end
-    if ~isfield(p, 'temporal_dilation_factor') || isempty(p.temporal_dilation_factor)
-        p.temporal_dilation_factor = 1;
-    end
     args = { ...
         'num_filters', p.num_filters, ...
         'temporal_kernel_size', p.temporal_kernel_size, ...
-        'temporal_dilation_factor', p.temporal_dilation_factor, ...
         'spatial_kernel_size', p.spatial_kernel_size, ...
         'dropout', p.dropout, ...
         'batch_norm', p.batch_norm, ...
@@ -420,16 +378,12 @@ function args = cnn_lstm_train_args(p)
     if ~isfield(p, 'fine_tune_epochs') || isempty(p.fine_tune_epochs)
         p.fine_tune_epochs = 3;
     end
-    if ~isfield(p, 'temporal_pool_size') || isempty(p.temporal_pool_size)
-        p.temporal_pool_size = 1;
-    end
     args = { ...
         'num_filters', p.num_filters, ...
         'spatial_kernel_size', p.spatial_kernel_size, ...
         'dropout', p.dropout, ...
         'batch_norm', p.batch_norm, ...
         'lstm_units', p.lstm_units, ...
-        'temporal_pool_size', p.temporal_pool_size, ...
         'max_epochs', p.max_epochs, ...
         'mini_batch_size', p.mini_batch_size, ...
         'initial_learn_rate', p.initial_learn_rate, ...
@@ -458,11 +412,6 @@ if phase(k) == 4 && ...
         size(train,1) > nTrials_before_train
     
     enable_hrf_for_decoder = hrf_params.enabled && is_tensor_decoder;
-    enable_deconv_for_decoder = hrf_deconv_params.enabled && is_tensor_decoder;
-    data_for_decode = data_buff;
-    if enable_deconv_for_decoder
-        data_for_decode = maybe_apply_hrf_deconvolution(data_for_decode, hrf_deconv_params, framerate);
-    end
     valid_lags = resolve_valid_lag_frames(hrf_params.lag_frames, num_frames_in_memory, training_set_size);
     if enable_hrf_for_decoder
         if isempty(valid_lags)
@@ -519,7 +468,7 @@ if phase(k) == 4 && ...
             horz_votes = NaN(1, numel(valid_lags));
             vert_votes = NaN(1, numel(valid_lags));
             for lag_i = 1:numel(valid_lags)
-                test_volume = extract_lagged_window(data_for_decode, training_set_size, valid_lags(lag_i));
+                test_volume = extract_lagged_window(data_buff, training_set_size, valid_lags(lag_i));
                 if enable_hrf_for_decoder
                     test_volume = apply_hrf_temporal_weighting(test_volume, hrf_params);
                 end
@@ -572,7 +521,7 @@ if phase(k) == 4 && ...
             end
             class_votes = NaN(1, numel(valid_lags));
             for lag_i = 1:numel(valid_lags)
-                test_volume = extract_lagged_window(data_for_decode, training_set_size, valid_lags(lag_i));
+                test_volume = extract_lagged_window(data_buff, training_set_size, valid_lags(lag_i));
                 if enable_hrf_for_decoder
                     test_volume = apply_hrf_temporal_weighting(test_volume, hrf_params);
                 end
@@ -649,11 +598,7 @@ if data.add_all_trials_to_training_set
         train_lag = resolve_training_lag(hrf_params.train_lag_frames, max_lag_for_train, hrf_params.enabled && is_tensor_decoder);
         train_start = training_window_start + train_lag;
         train_end = training_window_end + train_lag;
-        data_for_train = data_buff;
-        if hrf_deconv_params.enabled && is_tensor_decoder
-            data_for_train = maybe_apply_hrf_deconvolution(data_for_train, hrf_deconv_params, framerate);
-        end
-        new_train_volume = data_for_train(:, :, end-train_start:end-train_end);
+        new_train_volume = data_buff(:, :, end-train_start:end-train_end);
         if hrf_params.enabled && is_tensor_decoder
             new_train_volume = apply_hrf_temporal_weighting(new_train_volume, hrf_params);
         end
@@ -754,11 +699,7 @@ else % Only add successful trials
         train_lag = resolve_training_lag(hrf_params.train_lag_frames, max_lag_for_train, hrf_params.enabled && is_tensor_decoder);
         train_start = training_window_start + train_lag;
         train_end = training_window_end + train_lag;
-        data_for_train = data_buff;
-        if hrf_deconv_params.enabled && is_tensor_decoder
-            data_for_train = maybe_apply_hrf_deconvolution(data_for_train, hrf_deconv_params, framerate);
-        end
-        new_train_volume = data_for_train(:, :, end-train_start:end-train_end);
+        new_train_volume = data_buff(:, :, end-train_start:end-train_end);
         if hrf_params.enabled && is_tensor_decoder
             new_train_volume = apply_hrf_temporal_weighting(new_train_volume, hrf_params);
         end
@@ -925,7 +866,7 @@ end
                 'training_set_size', ...
                 'add_all_trials_to_training_set', 'filter_type', ...
                 'filter_size', 'filter_sigma', ...
-                'hrf_params', 'hrf_deconv_params', 'prediction_smoothing_window');
+                'hrf_params', 'prediction_smoothing_window');
         end
         
         % Initialize a dictionary
@@ -1121,73 +1062,6 @@ function pred_out = smooth_prediction(pred_in, winSize)
         recent_prediction_buffer = recent_prediction_buffer(end-winSize+1:end);
     end
     pred_out = majority_vote(recent_prediction_buffer);
-end
-
-function data_out = maybe_apply_hrf_deconvolution(data_in, cfg, fs)
-    data_out = data_in;
-    if ~isstruct(cfg) || ~isfield(cfg, 'enabled') || ~cfg.enabled
-        return;
-    end
-    nT = size(data_in, 3);
-    if nT < max(3, round(cfg.min_buffer_frames))
-        return;
-    end
-
-    h = build_canonical_hrf(nT, fs, cfg);
-    H = fft(double(h), nT, 2);
-    Hconj = conj(H);
-    denom = (abs(H) .^ 2) + max(1e-8, double(cfg.wiener_lambda));
-
-    [mLocal, nLocal, ~] = size(data_in);
-    X = reshape(double(data_in), mLocal * nLocal, nT);
-    X(~isfinite(X)) = 0;
-    Xfft = fft(X, [], 2);
-    Xhat = (Xfft .* Hconj) ./ denom;
-    x_deconv = real(ifft(Xhat, [], 2));
-
-    mu = mean(x_deconv, 2, 'omitnan');
-    sig = std(x_deconv, 0, 2, 'omitnan');
-    sig(sig == 0 | ~isfinite(sig)) = 1;
-    x_deconv = (x_deconv - mu) ./ sig;
-    x_deconv(~isfinite(x_deconv)) = 0;
-
-    data_out = reshape(single(x_deconv), mLocal, nLocal, nT);
-end
-
-function h = build_canonical_hrf(nT, fs, cfg)
-    fs = max(1e-6, double(fs));
-    dt = 1 / fs;
-    t = (0:nT-1) * dt;
-
-    peakDelay = max(0.5, double(cfg.peak_delay_sec));
-    undershootDelay = max(peakDelay + 0.5, double(cfg.undershoot_delay_sec));
-    undershootScale = max(0, double(cfg.undershoot_scale));
-    kernelLen = max(dt, double(cfg.kernel_length_sec));
-
-    h = zeros(1, nT);
-    valid = t <= kernelLen;
-    tv = t(valid);
-
-    a1 = max(2, round(peakDelay / dt));
-    b1 = max(dt, peakDelay / a1);
-    a2 = max(2, round(undershootDelay / dt));
-    b2 = max(dt, undershootDelay / a2);
-
-    g1 = gamma_pdf(tv, a1, b1);
-    g2 = gamma_pdf(tv, a2, b2);
-    hv = g1 - undershootScale * g2;
-    hv = hv - min(hv);
-    if max(hv) > 0
-        hv = hv / (sum(hv) + eps);
-    end
-    h(valid) = hv;
-    h(1) = h(1) + eps;
-end
-
-function y = gamma_pdf(t, a, b)
-    t = max(0, t);
-    y = (t .^ (a - 1)) .* exp(-t ./ b) ./ (gamma(a) * (b ^ a));
-    y(~isfinite(y)) = 0;
 end
 
 %% plotting functions % % % % % % % % % % % % % % % % % % % % % % %
