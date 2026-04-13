@@ -34,7 +34,7 @@ end
 end
 
 function [X, nSamples] = normalize_input_shape(testData, inputSize)
-    X = double(testData);
+    X = single(testData);
     switch ndims(X)
         case 2
             if size(X, 2) ~= prod(inputSize)

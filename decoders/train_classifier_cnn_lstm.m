@@ -15,10 +15,14 @@ p.addParameter('max_epochs', 60);
 p.addParameter('mini_batch_size', 8);
 p.addParameter('initial_learn_rate', 1e-3);
 p.addParameter('l2_regularization', 1e-4);
+p.addParameter('gradient_threshold', 1.0);
+p.addParameter('gradient_threshold_method', 'l2norm');
 p.addParameter('learn_rate_schedule', 'piecewise');
 p.addParameter('learn_rate_drop_factor', 0.5);
 p.addParameter('learn_rate_drop_period', 15);
 p.addParameter('validation_ratio', 0.2);
+p.addParameter('validation_patience', 8);
+p.addParameter('output_network', 'best-validation-loss');
 p.addParameter('verbose', false, @islogical);
 p.addParameter('random_seed', 42);
 p.addParameter('class_weight_mode', 'balanced');
@@ -115,8 +119,8 @@ for i = 1:numel(numFilters)
         block = [
             convolution2dLayer(cfg.spatial_kernel_size, numFilters(i), ...
                 'Padding', 'same', 'Name', sprintf('conv%d', i))
-            reluLayer('Name', sprintf('relu%d', i))
             batchNormalizationLayer('Name', sprintf('bn%d', i))
+            reluLayer('Name', sprintf('relu%d', i))
             maxPooling2dLayer(2, 'Stride', 2, 'Name', sprintf('pool%d', i))
         ];
     end
@@ -156,9 +160,30 @@ opts = trainingOptions('adam', ...
     'Verbose', cfg.verbose, ...
     'Plots', 'none');
 
+if cfg.gradient_threshold > 0
+    try
+        opts.GradientThreshold = cfg.gradient_threshold;
+        opts.GradientThresholdMethod = char(cfg.gradient_threshold_method);
+    catch
+        % For older MATLAB versions without this option.
+    end
+end
+
 if hasValidation
     opts.ValidationData = {XVal, yVal};
     opts.ValidationFrequency = max(1, floor(numel(XTrain) / cfg.mini_batch_size));
+    if cfg.validation_patience > 0
+        try
+            opts.ValidationPatience = cfg.validation_patience;
+        catch
+            % For older MATLAB versions without this option.
+        end
+    end
+    try
+        opts.OutputNetwork = char(cfg.output_network);
+    catch
+        % For older MATLAB versions without this option.
+    end
 end
 
 [net, warmStartUsed] = train_with_optional_warm_start(XTrain, yTrain, lg, opts, cfg);
@@ -256,12 +281,25 @@ function layer = build_classification_layer(yTrain, mode)
     switch lower(string(mode))
         case "balanced"
             counts = countcats(yTrain);
-            weights = median(counts) ./ max(counts, 1);
+            imbalanceRatio = max(counts) / max(min(counts), 1);
+            if imbalanceRatio >= 3
+                weights = effective_num_weights(counts, 0.999);
+            else
+                weights = median(counts) ./ max(counts, 1);
+                weights = weights / mean(weights);
+            end
             layer = classificationLayer('Name', 'classOutput', ...
                 'Classes', classes, 'ClassWeights', weights);
         otherwise
             layer = classificationLayer('Name', 'classOutput', 'Classes', classes);
     end
+end
+
+function weights = effective_num_weights(counts, beta)
+    counts = double(counts(:)');
+    effectiveNum = (1 - beta.^counts) ./ max(1 - beta, eps);
+    weights = 1 ./ max(effectiveNum, eps);
+    weights = weights / mean(weights);
 end
 
 function [mu, sigma] = compute_nan_mean_std_dim5(X)
