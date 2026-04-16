@@ -50,6 +50,7 @@ persistent class_predicted_horz class_predicted_vert class_true_horz class_true_
     model_horz model_vert
 persistent prediction_log_printed
 persistent recent_prediction_buffer
+persistent decode_latency_ms decode_latency_frame_idx decode_latency_trial_idx decode_latency_phase
 
 %% Specifying task and parameters to run
 
@@ -463,6 +464,7 @@ end
 %%%%% ONLINE PREDICTION %%%%%
 current_prediction = [];
 raw_prediction = [];
+decode_latency_current_ms = NaN;
 
 % This defines the conditions for making a prediction.
 if phase(k) == 4 && ...
@@ -470,7 +472,7 @@ if phase(k) == 4 && ...
         all(ismember(phase(k-num_frames_in_memory+1:k), 4)) &&...
         all(~ismember(phase(k-num_frames_in_memory), 4)) && ...
         size(train,1) > nTrials_before_train
-    
+    decode_tic = tic;
     enable_hrf_for_decoder = hrf_params.enabled && is_tensor_decoder;
     valid_lags = resolve_valid_lag_frames(hrf_params.lag_frames, num_frames_in_memory, training_set_size);
     if enable_hrf_for_decoder
@@ -592,6 +594,17 @@ if phase(k) == 4 && ...
             current_prediction = smooth_prediction(raw_prediction, prediction_smoothing_window);
             
             class_predicted= cat(2, class_predicted, current_prediction);
+    end
+
+    decode_latency_current_ms = 1e3 * toc(decode_tic);
+    decode_latency_ms = [decode_latency_ms, decode_latency_current_ms];
+    decode_latency_frame_idx = [decode_latency_frame_idx, k];
+    decode_latency_trial_idx = [decode_latency_trial_idx, trial(k)];
+    decode_latency_phase = [decode_latency_phase, phase(k)];
+    if mod(numel(decode_latency_ms), 20) == 0
+        [latMean, latMedian, latP95] = summarize_latency_ms(decode_latency_ms);
+        fprintf('[predict_movement_direction] decode latency (%s): mean=%.2f ms, median=%.2f ms, p95=%.2f ms, n=%d\n', ...
+            decoder_method, latMean, latMedian, latP95, numel(decode_latency_ms));
     end
     
     
@@ -861,7 +874,10 @@ if save_data
     else
         num_frames_in_memory_forSave = 0;
     end
-    fprintf(fidresult, '%s %s %s %d %d %d %d\r\n', fUS_comp_time, behavior_comp_time, acq_timestamp, phaseOut, num_frames_in_memory_forSave, actual_label, predicted_label);
+    fprintf(fidresult, '%s %s %s %d %d %d %d %.3f\r\n', ...
+        fUS_comp_time, behavior_comp_time, acq_timestamp, phaseOut, ...
+        num_frames_in_memory_forSave, actual_label, predicted_label, ...
+        decode_latency_current_ms);
     fclose(fidresult);
 end
 
@@ -876,6 +892,21 @@ end
 if k==nb_block
     putvar(class_true, class_predicted, use_previous_data_session, ...
         retrain, train, trainLabels);
+    if save_data && ~isempty(decode_latency_ms)
+        [latMean, latMedian, latP95] = summarize_latency_ms(decode_latency_ms);
+        decode_latency = struct();
+        decode_latency.decoder_method = decoder_method;
+        decode_latency.ms = decode_latency_ms;
+        decode_latency.frame_idx = decode_latency_frame_idx;
+        decode_latency.trial_idx = decode_latency_trial_idx;
+        decode_latency.phase = decode_latency_phase;
+        decode_latency.mean_ms = latMean;
+        decode_latency.median_ms = latMedian;
+        decode_latency.p95_ms = latP95;
+        save(fullfile(data_savepath, 'decode_latency_summary.mat'), 'decode_latency');
+        fprintf('[predict_movement_direction] Saved decode latency summary: mean=%.2f ms, median=%.2f ms, p95=%.2f ms, n=%d\n', ...
+            latMean, latMedian, latP95, numel(decode_latency_ms));
+    end
 end
 
 
@@ -932,6 +963,10 @@ end
         % Initialize a dictionary
         prediction_log_printed = false;
         recent_prediction_buffer = [];
+        decode_latency_ms = [];
+        decode_latency_frame_idx = [];
+        decode_latency_trial_idx = [];
+        decode_latency_phase = [];
         % Create Container (equivalent to python dictionary)
         % These state names are the ones in Python. They won't perfectly
         % match with the state names from MATLAB.
@@ -1138,6 +1173,27 @@ function pred_out = smooth_prediction(pred_in, winSize)
         recent_prediction_buffer = recent_prediction_buffer(end-winSize+1:end);
     end
     pred_out = majority_vote(recent_prediction_buffer);
+end
+
+function [meanMs, medianMs, p95Ms] = summarize_latency_ms(latMs)
+    if isempty(latMs)
+        meanMs = NaN;
+        medianMs = NaN;
+        p95Ms = NaN;
+        return;
+    end
+    latMs = latMs(isfinite(latMs));
+    if isempty(latMs)
+        meanMs = NaN;
+        medianMs = NaN;
+        p95Ms = NaN;
+        return;
+    end
+    meanMs = mean(latMs);
+    medianMs = median(latMs);
+    sortedLat = sort(latMs);
+    idx95 = max(1, ceil(0.95 * numel(sortedLat)));
+    p95Ms = sortedLat(idx95);
 end
 
 %% plotting functions % % % % % % % % % % % % % % % % % % % % % % %
