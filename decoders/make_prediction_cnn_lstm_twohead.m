@@ -65,10 +65,12 @@ classVals = classValues(idx);
 end
 
 function value = gather_numeric(value)
-if isa(value, 'dlarray')
+try
     value = extractdata(value);
+catch
 end
-if isa(value, 'gpuArray')
+try
     value = gather(value);
+catch
 end
 end

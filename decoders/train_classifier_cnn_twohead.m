@@ -379,13 +379,22 @@ tf = strcmpi(string(executionEnvironment), "gpu") && canUseGPU();
 end
 
 function value = gather_numeric_scalar(value)
-if isa(value, 'dlarray')
-    value = extractdata(value);
-end
-if isa(value, 'gpuArray')
-    value = gather(value);
-end
+value = gather_numeric_compat(value);
 value = double(value);
+if ~isscalar(value)
+    value = value(1);
+end
+end
+
+function value = gather_numeric_compat(value)
+try
+    value = extractdata(value);
+catch
+end
+try
+    value = gather(value);
+catch
+end
 end
 
 function XNorm = apply_zscore_samples(X, mu, sigma)
