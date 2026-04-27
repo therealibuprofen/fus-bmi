@@ -47,7 +47,7 @@ end
 end
 
 function class = select_requested_head(prediction, requestedHead)
-if isempty(requestedHead)
+if isempty(requestedHead) || (isstring(requestedHead) && all(strlength(requestedHead) == 0))
     class = prediction;
     return;
 end
