@@ -206,7 +206,7 @@ for epoch = 1:maxEpochs
         learnRate = learnRate * cfg.learn_rate_drop_factor;
     end
 
-    metric = gather(extractdata(loss));
+    metric = gather_numeric_scalar(loss);
     if ~isempty(XVal)
         metric = evaluate_loss(dlnet, XVal, yValH, yValV, weightsH, weightsV, cfg);
     end
@@ -250,7 +250,7 @@ for i = 1:numBatches
         dlX = gpuArray(dlX);
     end
     [losses(i), ~] = dlfeval(@model_loss, dlnet, dlX, yValH(batchIdx), yValV(batchIdx), weightsH, weightsV);
-    losses(i) = gather(extractdata(losses(i)));
+    losses(i) = gather_numeric_scalar(losses(i));
 end
 metric = mean(losses);
 end
@@ -360,6 +360,16 @@ end
 
 function tf = use_gpu(executionEnvironment)
 tf = strcmpi(string(executionEnvironment), "gpu") && canUseGPU();
+end
+
+function value = gather_numeric_scalar(value)
+if isa(value, 'dlarray')
+    value = extractdata(value);
+end
+if isa(value, 'gpuArray')
+    value = gather(value);
+end
+value = double(value);
 end
 
 function [X, inputSize, nSamples] = normalize_input_shape(trainData, inputSizeArg)
