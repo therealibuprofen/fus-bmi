@@ -91,6 +91,7 @@ is_cnn_decoder = strcmpi(decoder_method, 'CNN');
 is_cnn_lstm_decoder = strcmpi(decoder_method, 'CNN+LSTM') || ...
     strcmpi(decoder_method, 'CNN_LSTM') || strcmpi(decoder_method, 'CNNLSTM');
 is_tensor_decoder = is_cnn_decoder || is_cnn_lstm_decoder;
+use_shared_twohead_decoder = nClasses == 8 && is_tensor_decoder;
 if isfield(data, 'tensor_prepool') && ~isempty(data.tensor_prepool)
     tensor_prepool = logical(data.tensor_prepool);
 else
@@ -489,7 +490,11 @@ if phase(k) == 4 && ...
         case '8 tgt'
             % If no model has been trained yet, then train the model first.
             if isempty(model_horz) || isempty(model_vert)
-                fprintf('[predict_movement_direction] Training %s models for 8 tgt (horz/vert)\n', decoder_method);
+                if use_shared_twohead_decoder
+                    fprintf('[predict_movement_direction] Training shared two-head %s model for 8 tgt\n', decoder_method);
+                else
+                    fprintf('[predict_movement_direction] Training %s models for 8 tgt (horz/vert)\n', decoder_method);
+                end
                 % Define the class labels for horizontal and vertical
                 trainLabels_horz = lookup_table_for_horz(trainLabels);
                 trainLabels_vert = lookup_table_for_vert(trainLabels);
@@ -502,16 +507,30 @@ if phase(k) == 4 && ...
                         'method', decoder_method, fcnn_args{:});
                 elseif is_cnn_decoder
                     cnn_args = cnn_train_args(cnn_params);
-                    model_horz = train_decoder(train_tensor, trainLabels_horz, ...
-                        'method', decoder_method, 'initial_model', model_horz, cnn_args{:});
-                    model_vert = train_decoder(train_tensor, trainLabels_vert, ...
-                        'method', decoder_method, 'initial_model', model_vert, cnn_args{:});
+                    if use_shared_twohead_decoder
+                        shared_model = train_decoder(train_tensor, [trainLabels_horz(:), trainLabels_vert(:)], ...
+                            'method', decoder_method, 'initial_model', model_horz, cnn_args{:});
+                        model_horz = shared_model;
+                        model_vert = shared_model;
+                    else
+                        model_horz = train_decoder(train_tensor, trainLabels_horz, ...
+                            'method', decoder_method, 'initial_model', model_horz, cnn_args{:});
+                        model_vert = train_decoder(train_tensor, trainLabels_vert, ...
+                            'method', decoder_method, 'initial_model', model_vert, cnn_args{:});
+                    end
                 elseif is_cnn_lstm_decoder
                     cnn_lstm_args = cnn_lstm_train_args(cnn_lstm_params);
-                    model_horz = train_decoder(train_tensor, trainLabels_horz, ...
-                        'method', decoder_method, 'initial_model', model_horz, cnn_lstm_args{:});
-                    model_vert = train_decoder(train_tensor, trainLabels_vert, ...
-                        'method', decoder_method, 'initial_model', model_vert, cnn_lstm_args{:});
+                    if use_shared_twohead_decoder
+                        shared_model = train_decoder(train_tensor, [trainLabels_horz(:), trainLabels_vert(:)], ...
+                            'method', decoder_method, 'initial_model', model_horz, cnn_lstm_args{:});
+                        model_horz = shared_model;
+                        model_vert = shared_model;
+                    else
+                        model_horz = train_decoder(train_tensor, trainLabels_horz, ...
+                            'method', decoder_method, 'initial_model', model_horz, cnn_lstm_args{:});
+                        model_vert = train_decoder(train_tensor, trainLabels_vert, ...
+                            'method', decoder_method, 'initial_model', model_vert, cnn_lstm_args{:});
+                    end
                 else
                     model_horz = train_decoder(train, ...
                         trainLabels_horz, ...
@@ -535,8 +554,14 @@ if phase(k) == 4 && ...
                     test_volume = apply_hrf_temporal_weighting(test_volume, hrf_params);
                 end
                 test = format_decoder_input(test_volume, is_tensor_decoder, m, n, training_set_size);
-                horz_votes(lag_i) = predict_decoder(test, model_horz);
-                vert_votes(lag_i) = predict_decoder(test, model_vert);
+                if use_shared_twohead_decoder
+                    pair_pred = predict_decoder(test, model_horz);
+                    horz_votes(lag_i) = pair_pred(1);
+                    vert_votes(lag_i) = pair_pred(2);
+                else
+                    horz_votes(lag_i) = predict_decoder(test, model_horz);
+                    vert_votes(lag_i) = predict_decoder(test, model_vert);
+                end
             end
             class_horz = majority_vote(horz_votes);
             class_vert = majority_vote(vert_votes);
@@ -709,16 +734,30 @@ if data.add_all_trials_to_training_set
                                 'method', decoder_method, fcnn_args{:});
                         elseif is_cnn_decoder
                             cnn_args = cnn_train_args(cnn_params);
-                            model_horz = train_decoder(train_tensor, trainLabels_horz, ...
-                                'method', decoder_method, 'initial_model', model_horz, cnn_args{:});
-                            model_vert = train_decoder(train_tensor, trainLabels_vert, ...
-                                'method', decoder_method, 'initial_model', model_vert, cnn_args{:});
+                            if use_shared_twohead_decoder
+                                shared_model = train_decoder(train_tensor, [trainLabels_horz(:), trainLabels_vert(:)], ...
+                                    'method', decoder_method, 'initial_model', model_horz, cnn_args{:});
+                                model_horz = shared_model;
+                                model_vert = shared_model;
+                            else
+                                model_horz = train_decoder(train_tensor, trainLabels_horz, ...
+                                    'method', decoder_method, 'initial_model', model_horz, cnn_args{:});
+                                model_vert = train_decoder(train_tensor, trainLabels_vert, ...
+                                    'method', decoder_method, 'initial_model', model_vert, cnn_args{:});
+                            end
                         elseif is_cnn_lstm_decoder
                             cnn_lstm_args = cnn_lstm_train_args(cnn_lstm_params);
-                            model_horz = train_decoder(train_tensor, trainLabels_horz, ...
-                                'method', decoder_method, 'initial_model', model_horz, cnn_lstm_args{:});
-                            model_vert = train_decoder(train_tensor, trainLabels_vert, ...
-                                'method', decoder_method, 'initial_model', model_vert, cnn_lstm_args{:});
+                            if use_shared_twohead_decoder
+                                shared_model = train_decoder(train_tensor, [trainLabels_horz(:), trainLabels_vert(:)], ...
+                                    'method', decoder_method, 'initial_model', model_horz, cnn_lstm_args{:});
+                                model_horz = shared_model;
+                                model_vert = shared_model;
+                            else
+                                model_horz = train_decoder(train_tensor, trainLabels_horz, ...
+                                    'method', decoder_method, 'initial_model', model_horz, cnn_lstm_args{:});
+                                model_vert = train_decoder(train_tensor, trainLabels_vert, ...
+                                    'method', decoder_method, 'initial_model', model_vert, cnn_lstm_args{:});
+                            end
                         else
                             model_horz = train_decoder(train, ...
                                 trainLabels_horz, ...
@@ -810,16 +849,30 @@ else % Only add successful trials
                                 'method', decoder_method, fcnn_args{:});
                         elseif is_cnn_decoder
                             cnn_args = cnn_train_args(cnn_params);
-                            model_horz = train_decoder(train_tensor, trainLabels_horz, ...
-                                'method', decoder_method, 'initial_model', model_horz, cnn_args{:});
-                            model_vert = train_decoder(train_tensor, trainLabels_vert, ...
-                                'method', decoder_method, 'initial_model', model_vert, cnn_args{:});
+                            if use_shared_twohead_decoder
+                                shared_model = train_decoder(train_tensor, [trainLabels_horz(:), trainLabels_vert(:)], ...
+                                    'method', decoder_method, 'initial_model', model_horz, cnn_args{:});
+                                model_horz = shared_model;
+                                model_vert = shared_model;
+                            else
+                                model_horz = train_decoder(train_tensor, trainLabels_horz, ...
+                                    'method', decoder_method, 'initial_model', model_horz, cnn_args{:});
+                                model_vert = train_decoder(train_tensor, trainLabels_vert, ...
+                                    'method', decoder_method, 'initial_model', model_vert, cnn_args{:});
+                            end
                         elseif is_cnn_lstm_decoder
                             cnn_lstm_args = cnn_lstm_train_args(cnn_lstm_params);
-                            model_horz = train_decoder(train_tensor, trainLabels_horz, ...
-                                'method', decoder_method, 'initial_model', model_horz, cnn_lstm_args{:});
-                            model_vert = train_decoder(train_tensor, trainLabels_vert, ...
-                                'method', decoder_method, 'initial_model', model_vert, cnn_lstm_args{:});
+                            if use_shared_twohead_decoder
+                                shared_model = train_decoder(train_tensor, [trainLabels_horz(:), trainLabels_vert(:)], ...
+                                    'method', decoder_method, 'initial_model', model_horz, cnn_lstm_args{:});
+                                model_horz = shared_model;
+                                model_vert = shared_model;
+                            else
+                                model_horz = train_decoder(train_tensor, trainLabels_horz, ...
+                                    'method', decoder_method, 'initial_model', model_horz, cnn_lstm_args{:});
+                                model_vert = train_decoder(train_tensor, trainLabels_vert, ...
+                                    'method', decoder_method, 'initial_model', model_vert, cnn_lstm_args{:});
+                            end
                         else
                             model_horz = train_decoder(train, ...
                                 trainLabels_horz, ...

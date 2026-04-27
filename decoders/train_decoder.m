@@ -37,12 +37,22 @@ if decoderVerbose && ~any(strcmpi(printedMethods, method))
     printedMethods(end + 1) = method;
 end
 
+isTwoHeadLabels = isnumeric(trainLabels) && ismatrix(trainLabels) && size(trainLabels, 2) == 2;
+
 if strcmpi(method, "FCNN")
     model = train_classifier_fcnn(trainData, trainLabels, forwardArgs{:});
 elseif strcmpi(method, "CNN")
-    model = train_classifier_cnn(trainData, trainLabels, forwardArgs{:});
+    if isTwoHeadLabels
+        model = train_classifier_cnn_twohead(trainData, trainLabels, forwardArgs{:});
+    else
+        model = train_classifier_cnn(trainData, trainLabels, forwardArgs{:});
+    end
 elseif strcmpi(method, "CNN+LSTM") || strcmpi(method, "CNN_LSTM") || strcmpi(method, "CNNLSTM")
-    model = train_classifier_cnn_lstm(trainData, trainLabels, forwardArgs{:});
+    if isTwoHeadLabels
+        model = train_classifier_cnn_lstm_twohead(trainData, trainLabels, forwardArgs{:});
+    else
+        model = train_classifier_cnn_lstm(trainData, trainLabels, forwardArgs{:});
+    end
 else
     model = train_classifier(trainData, trainLabels, forwardArgs{:});
 end
