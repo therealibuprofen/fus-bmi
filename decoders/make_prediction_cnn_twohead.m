@@ -60,6 +60,10 @@ end
 
 function classVals = scores_to_class_values(scores, classValues)
 scores = gather_numeric(stripdims(scores));
+scores = squeeze(scores);
+if isvector(scores)
+    scores = reshape(scores, [], 1);
+end
 [~, idx] = max(scores, [], 1);
 idx = reshape(idx, [], 1);
 classVals = classValues(idx);

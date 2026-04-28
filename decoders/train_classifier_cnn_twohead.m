@@ -287,7 +287,7 @@ loss = 0.5 * (lossH + lossV);
 end
 
 function loss = weighted_crossentropy(logits, labels, classWeights)
-logits = stripdims(logits);
+logits = logits_to_class_batch(logits);
 probs = softmax(logits, 'DataFormat', 'CB');
 nClasses = size(probs, 1);
 nObs = size(probs, 2);
@@ -298,6 +298,14 @@ sampleWeights = reshape(classWeights(double(labels(:))), 1, []);
 sampleWeights = dlarray(cast(sampleWeights, 'like', probs));
 lossPerObs = -sum(targets .* log(probs + eps('single')), 1);
 loss = mean(lossPerObs .* sampleWeights, 'all');
+end
+
+function logits = logits_to_class_batch(logits)
+logits = stripdims(logits);
+logits = squeeze(logits);
+if isvector(logits)
+    logits = reshape(logits, [], 1);
+end
 end
 
 function yIdx = encode_labels(y, classVals)
