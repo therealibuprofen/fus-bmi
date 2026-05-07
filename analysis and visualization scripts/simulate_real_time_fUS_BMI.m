@@ -10,7 +10,6 @@ clear; close all; clc;
 % increment the run count.
 project_record = get_project_record('include_simulated', true);
 
-
 %% select run mode
 fast_mode = 'Run as fast as possible with minimal user display';
 verbose_mode = 'Run slower with full display of data streaming and trial performance';
@@ -20,6 +19,7 @@ mode = questdlg('Which mode would you like to run in?',...
     fast_mode, ...
     verbose_mode,...
     fast_mode);
+
 
 % Dialog box to select desired settings
 option_strings = {'pretrain+retrain', 'pretrain only', 'retrain only'};
