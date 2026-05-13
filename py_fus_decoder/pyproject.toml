@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "py-fus-decoder"
+version = "0.1.0"
+description = "Modular research-grade fUS decoding and offline evaluation framework."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+  { name = "OpenAI Codex" }
+]
+dependencies = []
+
+[project.optional-dependencies]
+classical = [
+  "numpy>=1.23",
+  "scikit-learn>=1.2",
+]
+deep = [
+  "numpy>=1.23",
+  "torch>=2.1",
+]
+io = [
+  "numpy>=1.23",
+  "scipy>=1.10",
+  "h5py>=3.8",
+  "PyYAML>=6.0",
+]
+full = [
+  "numpy>=1.23",
+  "scikit-learn>=1.2",
+  "torch>=2.1",
+  "scipy>=1.10",
+  "h5py>=3.8",
+  "PyYAML>=6.0",
+]
+
+[project.scripts]
+fus-offline-eval = "fus_decoder.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "." }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fus_decoder*"]

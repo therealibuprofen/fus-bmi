@@ -1,2 +1,10 @@
-*.asv
-*.mat
+venv/
+.venv/
+env/
+__pycache__/
+data/
+dataset/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store

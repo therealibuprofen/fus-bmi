@@ -1,0 +1,68 @@
+{
+  "experiment_name": "fus_multispecies_offline_eval",
+  "datasets": [
+    {
+      "name": "example_rat_motor",
+      "path": "replace_with_dataset.npz",
+      "loader": "auto",
+      "species": "rat",
+      "task": "motor_direction",
+      "group_key": "session"
+    }
+  ],
+  "models": [
+    {
+      "name": "pca_lda_baseline",
+      "family": "pca_lda",
+      "enabled": true,
+      "params": {
+        "n_components": 0.95
+      }
+    },
+    {
+      "name": "cpca_lda_baseline",
+      "family": "cpca_lda",
+      "enabled": true,
+      "params": {
+        "n_components": 0.95
+      }
+    },
+    {
+      "name": "cnn_decoder",
+      "family": "cnn",
+      "enabled": true,
+      "params": {
+        "epochs": 20,
+        "batch_size": 8,
+        "learning_rate": 0.001,
+        "channels": [8, 16, 32],
+        "hidden_dim": 128
+      }
+    },
+    {
+      "name": "cnn_lstm_decoder",
+      "family": "cnn_lstm",
+      "enabled": true,
+      "params": {
+        "epochs": 20,
+        "batch_size": 8,
+        "learning_rate": 0.001,
+        "channels": [8, 16],
+        "hidden_dim": 64
+      }
+    }
+  ],
+  "cross_validation": {
+    "strategy": "stratified_kfold",
+    "n_splits": 5,
+    "shuffle": true,
+    "random_seed": 42,
+    "group_key": null
+  },
+  "output": {
+    "output_dir": "py_fus_decoder/output",
+    "save_fold_predictions": true,
+    "save_confusion_matrices": true
+  },
+  "metrics": ["accuracy", "balanced_accuracy", "f1_macro"]
+}

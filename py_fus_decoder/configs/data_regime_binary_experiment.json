@@ -1,0 +1,86 @@
+{
+  "experiment_name": "data_regime_binary_s5_r1",
+  "datasets": [
+    {
+      "name": "s5_r1_binary_session",
+      "path": "py_fus_decoder/dataset/rt_fUS_data_S5_R1.mat",
+      "loader": "mat",
+      "species": "unknown",
+      "task": "binary_decoder",
+      "group_key": "session",
+      "extra": {
+        "drop_nan_labels": true,
+        "cast_labels_to_int": true,
+        "extract_trials": true,
+        "training_set_size": 3,
+        "buffer_size": 60,
+        "preprocess_zscore": true,
+        "clip_zscore": 6.0,
+        "allowed_labels": [1, 2],
+        "spatial_downsample": 4,
+        "max_samples": 256,
+        "balanced_subsample": true,
+        "random_seed": 42
+      }
+    }
+  ],
+  "models": [
+    {
+      "name": "pca_lda_baseline",
+      "family": "pca_lda",
+      "enabled": true,
+      "params": {
+        "n_components": 0.95
+      }
+    },
+    {
+      "name": "cpca_lda_baseline",
+      "family": "cpca_lda",
+      "enabled": true,
+      "params": {
+        "n_components": 0.95,
+        "max_components_per_class": 32
+      }
+    },
+    {
+      "name": "cnn_small",
+      "family": "cnn",
+      "enabled": true,
+      "params": {
+        "epochs": 4,
+        "batch_size": 16,
+        "learning_rate": 0.001,
+        "channels": [4, 8],
+        "kernel_size": 3,
+        "hidden_dim": 32
+      }
+    },
+    {
+      "name": "cnn_lstm_small",
+      "family": "cnn_lstm",
+      "enabled": true,
+      "params": {
+        "epochs": 4,
+        "batch_size": 16,
+        "learning_rate": 0.001,
+        "channels": [4, 8],
+        "kernel_size": 3,
+        "hidden_dim": 32,
+        "num_layers": 1
+      }
+    }
+  ],
+  "cross_validation": {
+    "strategy": "stratified_kfold",
+    "n_splits": 3,
+    "shuffle": true,
+    "random_seed": 42
+  },
+  "train_size_fractions": [0.1, 0.3, 0.5, 1.0],
+  "output": {
+    "output_dir": "py_fus_decoder/output/data_regime_binary_experiment",
+    "save_fold_predictions": true,
+    "save_confusion_matrices": true
+  },
+  "metrics": ["accuracy", "balanced_accuracy", "f1_macro"]
+}
