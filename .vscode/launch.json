@@ -1,0 +1,53 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "fUS: Cross Session LOSO",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/py_fus_decoder/run_cross_session.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/py_fus_decoder",
+      "python": "${workspaceFolder}/py_fus_decoder/.venv/bin/python",
+      "env": {
+        "MPLCONFIGDIR": "${workspaceFolder}/py_fus_decoder/output/.mplconfig"
+      }
+    },
+    {
+      "name": "fUS: Group Sessions",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/py_fus_decoder/run_group_sessions.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/py_fus_decoder",
+      "python": "${workspaceFolder}/py_fus_decoder/.venv/bin/python"
+    },
+    {
+      "name": "fUS: Offline Smoke",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/py_fus_decoder/run_offline_smoke.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/py_fus_decoder",
+      "python": "${workspaceFolder}/py_fus_decoder/.venv/bin/python"
+    },
+    {
+      "name": "fUS: Data Regime Binary",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/py_fus_decoder/run_data_regime_binary.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/py_fus_decoder",
+      "python": "${workspaceFolder}/py_fus_decoder/.venv/bin/python"
+    },
+    {
+      "name": "fUS: Data Regime 8 Target",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/py_fus_decoder/run_data_regime_8target.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/py_fus_decoder",
+      "python": "${workspaceFolder}/py_fus_decoder/.venv/bin/python"
+    }
+  ]
+}

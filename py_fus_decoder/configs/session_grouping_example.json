@@ -1,0 +1,38 @@
+{
+  "dataset_root": "py_fus_decoder/dataset",
+  "sessions": [
+    {
+      "Session": 5,
+      "Run": 1,
+      "Date": "23-Mar-2022",
+      "Monkey": "P",
+      "Slot": "cor_9",
+      "Task": "saccade",
+      "nTrials": 428,
+      "nTargets": 2,
+      "Notes": []
+    },
+    {
+      "Session": 17,
+      "Run": 1,
+      "Date": "17-May-2022",
+      "Monkey": "P",
+      "Slot": "cor_9",
+      "Task": "reach",
+      "nTrials": 185,
+      "nTargets": 8,
+      "Notes": []
+    },
+    {
+      "Session": 18,
+      "Run": 1,
+      "Date": "18-May-2022",
+      "Monkey": "P",
+      "Slot": "cor_9",
+      "Task": "reach",
+      "nTrials": 129,
+      "nTargets": 2,
+      "Notes": []
+    }
+  ]
+}

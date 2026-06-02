@@ -1,0 +1,97 @@
+{
+  "dataset_root": "py_fus_decoder/dataset",
+  "dataset_defaults": {
+    "loader": "mat",
+    "extra": {
+      "drop_nan_labels": true,
+      "cast_labels_to_int": true,
+      "extract_trials": true,
+      "training_set_size": 3,
+      "buffer_size": 60,
+      "preprocess_zscore": true,
+      "clip_zscore": 6.0,
+      "spatial_downsample": 4
+    }
+  },
+  "models": [
+    {
+      "name": "pca_lda_baseline",
+      "family": "pca_lda",
+      "enabled": true,
+      "params": {
+        "n_components": 0.95
+      }
+    },
+    {
+      "name": "cpca_lda_baseline",
+      "family": "cpca_lda",
+      "enabled": true,
+      "params": {
+        "n_components": 0.95,
+        "max_components_per_class": 16
+      }
+    },
+    {
+      "name": "cnn_small",
+      "family": "cnn",
+      "enabled": true,
+      "params": {
+        "epochs": 2,
+        "batch_size": 8,
+        "learning_rate": 0.001,
+        "channels": [4, 8],
+        "kernel_size": 3,
+        "hidden_dim": 32
+      }
+    },
+    {
+      "name": "cnn_lstm_small",
+      "family": "cnn_lstm",
+      "enabled": true,
+      "params": {
+        "epochs": 2,
+        "batch_size": 8,
+        "learning_rate": 0.001,
+        "channels": [4, 8],
+        "kernel_size": 3,
+        "hidden_dim": 32,
+        "num_layers": 1
+      }
+    }
+  ],
+  "sessions": [
+    {
+      "Session": 13,
+      "Run": 1,
+      "Date": "03-May-2022",
+      "Monkey": "L",
+      "Slot": "cor_11",
+      "Task": "saccade",
+      "nTrials": 272,
+      "nTargets": 8,
+      "Notes": []
+    },
+    {
+      "Session": 17,
+      "Run": 1,
+      "Date": "17-May-2022",
+      "Monkey": "L",
+      "Slot": "cor_11",
+      "Task": "saccade",
+      "nTrials": 186,
+      "nTargets": 8,
+      "Notes": []
+    },
+    {
+      "Session": 21,
+      "Run": 1,
+      "Date": "25-May-2022",
+      "Monkey": "L",
+      "Slot": "cor_11",
+      "Task": "saccade",
+      "nTrials": 84,
+      "nTargets": 8,
+      "Notes": []
+    }
+  ]
+}

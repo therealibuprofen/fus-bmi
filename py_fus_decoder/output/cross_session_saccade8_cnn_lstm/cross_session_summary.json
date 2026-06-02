@@ -1,0 +1,657 @@
+{
+  "rule": "Only sessions with identical monkey, slot, task, and n_targets are grouped for cross-session leave-one-session-out evaluation.",
+  "n_input_sessions": 3,
+  "normalization": "Per-session independent z-score normalization is applied before cross-session train/test splitting.",
+  "anti_leakage": "Each held-out session is never used in model fitting. PCA/cPCA/LDA parameters are fit on training sessions only. Test-session normalization uses only test-session statistics.",
+  "n_eligible_groups": 1,
+  "groups": [
+    {
+      "group_key": "monkey=l__slot=cor_11__task=saccade__n_targets=8",
+      "monkey": "L",
+      "slot": "cor_11",
+      "task": "saccade",
+      "n_targets": 8,
+      "n_sessions": 3,
+      "session_members": [
+        "S13_R1",
+        "S17_R1",
+        "S21_R1"
+      ],
+      "models": [
+        {
+          "name": "cnn_lstm_small",
+          "family": "cnn_lstm",
+          "params": {
+            "epochs": 2,
+            "batch_size": 8,
+            "learning_rate": 0.001,
+            "channels": [
+              4,
+              8
+            ],
+            "kernel_size": 3,
+            "hidden_dim": 32,
+            "num_layers": 1
+          },
+          "folds": [
+            {
+              "heldout_session": "S13_R1",
+              "n_train": 476,
+              "n_test": 252,
+              "accuracy": 0.13095238095238096,
+              "confusion_matrix": [
+                [
+                  0,
+                  0,
+                  3,
+                  0,
+                  0,
+                  0,
+                  22,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  3,
+                  0,
+                  0,
+                  0,
+                  25,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  3,
+                  0,
+                  0,
+                  1,
+                  32,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  4,
+                  0,
+                  0,
+                  0,
+                  29,
+                  1
+                ],
+                [
+                  0,
+                  1,
+                  5,
+                  0,
+                  0,
+                  0,
+                  30,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  2,
+                  0,
+                  0,
+                  0,
+                  28,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  7,
+                  0,
+                  0,
+                  0,
+                  30,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  23,
+                  0
+                ]
+              ],
+              "classification_report": {
+                "1": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 25.0
+                },
+                "2": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 28.0
+                },
+                "3": {
+                  "precision": 0.1111111111111111,
+                  "recall": 0.08108108108108109,
+                  "f1-score": 0.09375,
+                  "support": 37.0
+                },
+                "4": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 35.0
+                },
+                "6": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 36.0
+                },
+                "7": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 31.0
+                },
+                "8": {
+                  "precision": 0.136986301369863,
+                  "recall": 0.8108108108108109,
+                  "f1-score": 0.234375,
+                  "support": 37.0
+                },
+                "9": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 23.0
+                },
+                "accuracy": 0.13095238095238096,
+                "macro avg": {
+                  "precision": 0.031012176560121764,
+                  "recall": 0.11148648648648649,
+                  "f1-score": 0.041015625,
+                  "support": 252.0
+                },
+                "weighted avg": {
+                  "precision": 0.03642700103887318,
+                  "recall": 0.13095238095238096,
+                  "f1-score": 0.048177083333333336,
+                  "support": 252.0
+                }
+              }
+            },
+            {
+              "heldout_session": "S17_R1",
+              "n_train": 543,
+              "n_test": 185,
+              "accuracy": 0.08108108108108109,
+              "confusion_matrix": [
+                [
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  13,
+                  5,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  22,
+                  4,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  1,
+                  0,
+                  1,
+                  21,
+                  2,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  3,
+                  0,
+                  0,
+                  21,
+                  6,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  2,
+                  0,
+                  1,
+                  14,
+                  3,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  2,
+                  0,
+                  0,
+                  10,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  1,
+                  0,
+                  2,
+                  21,
+                  3,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  3,
+                  0,
+                  1,
+                  18,
+                  2,
+                  0
+                ]
+              ],
+              "classification_report": {
+                "1": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 19.0
+                },
+                "2": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 27.0
+                },
+                "3": {
+                  "precision": 0.07142857142857142,
+                  "recall": 0.04,
+                  "f1-score": 0.05128205128205128,
+                  "support": 25.0
+                },
+                "4": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 30.0
+                },
+                "6": {
+                  "precision": 0.2,
+                  "recall": 0.05,
+                  "f1-score": 0.08,
+                  "support": 20.0
+                },
+                "7": {
+                  "precision": 0.07142857142857142,
+                  "recall": 0.7692307692307693,
+                  "f1-score": 0.13071895424836602,
+                  "support": 13.0
+                },
+                "8": {
+                  "precision": 0.11538461538461539,
+                  "recall": 0.1111111111111111,
+                  "f1-score": 0.11320754716981132,
+                  "support": 27.0
+                },
+                "9": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 24.0
+                },
+                "accuracy": 0.08108108108108109,
+                "macro avg": {
+                  "precision": 0.057280219780219785,
+                  "recall": 0.12129273504273505,
+                  "f1-score": 0.04690106908752858,
+                  "support": 185.0
+                },
+                "weighted avg": {
+                  "precision": 0.05313335313335313,
+                  "recall": 0.08108108108108109,
+                  "f1-score": 0.04128649438305376,
+                  "support": 185.0
+                }
+              }
+            },
+            {
+              "heldout_session": "S21_R1",
+              "n_train": 437,
+              "n_test": 291,
+              "accuracy": 0.12371134020618557,
+              "confusion_matrix": [
+                [
+                  0,
+                  1,
+                  0,
+                  0,
+                  5,
+                  0,
+                  21,
+                  1
+                ],
+                [
+                  0,
+                  0,
+                  2,
+                  0,
+                  11,
+                  0,
+                  25,
+                  0
+                ],
+                [
+                  0,
+                  4,
+                  2,
+                  1,
+                  15,
+                  0,
+                  24,
+                  2
+                ],
+                [
+                  0,
+                  0,
+                  1,
+                  0,
+                  4,
+                  0,
+                  16,
+                  1
+                ],
+                [
+                  0,
+                  2,
+                  0,
+                  0,
+                  9,
+                  0,
+                  23,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  2,
+                  0,
+                  13,
+                  0,
+                  24,
+                  4
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  0,
+                  13,
+                  0,
+                  25,
+                  4
+                ],
+                [
+                  0,
+                  2,
+                  1,
+                  0,
+                  10,
+                  0,
+                  22,
+                  0
+                ]
+              ],
+              "classification_report": {
+                "1": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 28.0
+                },
+                "2": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 38.0
+                },
+                "3": {
+                  "precision": 0.25,
+                  "recall": 0.041666666666666664,
+                  "f1-score": 0.07142857142857142,
+                  "support": 48.0
+                },
+                "4": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 22.0
+                },
+                "6": {
+                  "precision": 0.1125,
+                  "recall": 0.2647058823529412,
+                  "f1-score": 0.15789473684210525,
+                  "support": 34.0
+                },
+                "7": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 43.0
+                },
+                "8": {
+                  "precision": 0.1388888888888889,
+                  "recall": 0.5813953488372093,
+                  "f1-score": 0.2242152466367713,
+                  "support": 43.0
+                },
+                "9": {
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1-score": 0.0,
+                  "support": 35.0
+                },
+                "accuracy": 0.12371134020618557,
+                "macro avg": {
+                  "precision": 0.06267361111111111,
+                  "recall": 0.11097098723210215,
+                  "f1-score": 0.056692319363431,
+                  "support": 291.0
+                },
+                "weighted avg": {
+                  "precision": 0.07490454371897672,
+                  "recall": 0.12371134020618557,
+                  "f1-score": 0.06336167727348513,
+                  "support": 291.0
+                }
+              }
+            }
+          ],
+          "fold_accuracies": [
+            0.13095238095238096,
+            0.08108108108108109,
+            0.12371134020618557
+          ],
+          "mean_accuracy": 0.11538461538461539,
+          "confusion_matrix": [
+            [
+              0,
+              1,
+              4,
+              0,
+              5,
+              13,
+              48,
+              1
+            ],
+            [
+              0,
+              0,
+              6,
+              0,
+              11,
+              22,
+              54,
+              0
+            ],
+            [
+              0,
+              5,
+              6,
+              1,
+              16,
+              22,
+              58,
+              2
+            ],
+            [
+              0,
+              1,
+              8,
+              0,
+              4,
+              21,
+              51,
+              2
+            ],
+            [
+              0,
+              3,
+              7,
+              0,
+              10,
+              14,
+              56,
+              0
+            ],
+            [
+              0,
+              1,
+              6,
+              0,
+              13,
+              10,
+              53,
+              4
+            ],
+            [
+              0,
+              1,
+              8,
+              0,
+              15,
+              21,
+              58,
+              4
+            ],
+            [
+              0,
+              2,
+              4,
+              0,
+              11,
+              18,
+              47,
+              0
+            ]
+          ],
+          "classification_report": {
+            "1": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1-score": 0.0,
+              "support": 72.0
+            },
+            "2": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1-score": 0.0,
+              "support": 93.0
+            },
+            "3": {
+              "precision": 0.12244897959183673,
+              "recall": 0.05454545454545454,
+              "f1-score": 0.07547169811320754,
+              "support": 110.0
+            },
+            "4": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1-score": 0.0,
+              "support": 87.0
+            },
+            "6": {
+              "precision": 0.11764705882352941,
+              "recall": 0.1111111111111111,
+              "f1-score": 0.11428571428571428,
+              "support": 90.0
+            },
+            "7": {
+              "precision": 0.07092198581560284,
+              "recall": 0.11494252873563218,
+              "f1-score": 0.08771929824561403,
+              "support": 87.0
+            },
+            "8": {
+              "precision": 0.13647058823529412,
+              "recall": 0.5420560747663551,
+              "f1-score": 0.21804511278195488,
+              "support": 107.0
+            },
+            "9": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1-score": 0.0,
+              "support": 82.0
+            },
+            "accuracy": 0.11538461538461539,
+            "macro avg": {
+              "precision": 0.05593607655828289,
+              "recall": 0.10283189614481912,
+              "f1-score": 0.06194022792831134,
+              "support": 728.0
+            },
+            "weighted avg": {
+              "precision": 0.06157992961037583,
+              "recall": 0.11538461538461539,
+              "f1-score": 0.06806319655659988,
+              "support": 728.0
+            }
+          },
+          "labels": [
+            1,
+            2,
+            3,
+            4,
+            6,
+            7,
+            8,
+            9
+          ]
+        }
+      ]
+    }
+  ],
+  "excluded_sessions": []
+}

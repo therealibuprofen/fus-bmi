@@ -137,12 +137,16 @@ class PCALDADecoder(DecoderModel):
         sk_da = require_dependency(
             "sklearn.discriminant_analysis", 'pip install -e ".[classical]"'
         )
+        apply_standard_scaler = bool(params.pop("apply_standard_scaler", True))
         lda_solver = params.pop("solver", "lsqr")
         lda_shrinkage = params.pop("shrinkage", "auto" if lda_solver in {"lsqr", "eigen"} else None)
+        scale_step = (
+            sk_preprocessing.StandardScaler() if apply_standard_scaler else IdentityTransformer()
+        )
         self.estimator = sk_pipeline.Pipeline(
             steps=[
                 ("flatten", FunctionTransformer2D()),
-                ("scale", sk_preprocessing.StandardScaler()),
+                ("scale", scale_step),
                 (
                     "pca",
                     sk_decomp.PCA(
@@ -183,7 +187,12 @@ class CPCALDADecoder(DecoderModel):
         sk_da = require_dependency(
             "sklearn.discriminant_analysis", 'pip install -e ".[classical]"'
         )
-        self.scaler = sk_preprocessing.StandardScaler()
+        apply_standard_scaler = bool(params.pop("apply_standard_scaler", True))
+        self.scaler = (
+            sk_preprocessing.StandardScaler()
+            if apply_standard_scaler
+            else IdentityTransformer()
+        )
         self.cpca = ClasswisePCATransformer(
             n_components=params.pop("n_components", 0.95),
             whiten=params.pop("whiten", False),
@@ -217,3 +226,14 @@ class FunctionTransformer2D:
 
     def transform(self, X: Any) -> Any:
         return _to_2d_array(X)
+
+
+class IdentityTransformer:
+    def fit(self, X: Any, y: Any = None) -> "IdentityTransformer":
+        return self
+
+    def transform(self, X: Any) -> Any:
+        return _to_2d_array(X)
+
+    def fit_transform(self, X: Any, y: Any = None) -> Any:
+        return self.fit(X, y).transform(X)

@@ -1,0 +1,103 @@
+{
+  "dataset_root": "py_fus_decoder/dataset",
+  "dataset_defaults": {
+    "loader": "mat",
+    "extra": {
+      "drop_nan_labels": true,
+      "cast_labels_to_int": true,
+      "extract_trials": true,
+      "training_set_size": 3,
+      "buffer_size": 60,
+      "preprocess_zscore": true,
+      "clip_zscore": 6.0,
+      "spatial_downsample": 4
+    }
+  },
+  "models": [
+    {
+      "name": "pca_lda_baseline",
+      "family": "pca_lda",
+      "enabled": true,
+      "params": {
+        "n_components": 0.95
+      }
+    },
+    {
+      "name": "cpca_lda_baseline",
+      "family": "cpca_lda",
+      "enabled": true,
+      "params": {
+        "n_components": 0.95,
+        "max_components_per_class": 16
+      }
+    },
+    {
+      "name": "cnn_small",
+      "family": "cnn",
+      "enabled": true,
+      "params": {
+        "epochs": 5,
+        "batch_size": 8,
+        "learning_rate": 0.001,
+        "channels": [4, 8],
+        "kernel_size": 3,
+        "hidden_dim": 32
+      }
+    },
+    {
+      "name": "cnn_lstm_small",
+      "family": "cnn_lstm",
+      "enabled": true,
+      "params": {
+        "epochs": 5,
+        "batch_size": 8,
+        "learning_rate": 0.001,
+        "channels": [4, 8],
+        "kernel_size": 3,
+        "hidden_dim": 32,
+        "num_layers": 1
+      }
+    }
+  ],
+  "sessions": [
+    {
+      "Session": 18,
+      "Run": 1,
+      "Date": "18-May-2022",
+      "Monkey": "P",
+      "Slot": "cor_9",
+      "Task": "reach",
+      "nTrials": 129,
+      "nTargets": 2,
+      "pretraining": 0,
+      "retraining": 1,
+      "Notes": []
+    },
+    {
+      "Session": 19,
+      "Run": 1,
+      "Date": "19-May-2022",
+      "Monkey": "P",
+      "Slot": "cor_9",
+      "Task": "reach",
+      "nTrials": 130,
+      "nTargets": 2,
+      "pretraining": 0,
+      "retraining": 1,
+      "Notes": []
+    },
+    {
+      "Session": 20,
+      "Run": 1,
+      "Date": "20-May-2022",
+      "Monkey": "P",
+      "Slot": "cor_9",
+      "Task": "reach",
+      "nTrials": 127,
+      "nTargets": 2,
+      "pretraining": 0,
+      "retraining": 1,
+      "Notes": []
+    }
+  ]
+}

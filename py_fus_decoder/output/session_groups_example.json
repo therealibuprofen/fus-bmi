@@ -1,0 +1,77 @@
+{
+  "rule": "Only sessions with identical task and identical brain_region are grouped for direct joint training.",
+  "n_input_sessions": 3,
+  "n_groups": 3,
+  "groups": [
+    {
+      "merge_key": "task=binary_decoder__brain_region=parietal_reach_region",
+      "task": "binary_decoder",
+      "brain_region": "parietal_reach_region",
+      "n_sessions": 1,
+      "session_members": [
+        "S999_R1"
+      ],
+      "sessions": [
+        {
+          "path": "/Users/ibuprofen/Desktop/fus-bmi/rt_fUS_BMI/py_fus_decoder/dataset/rt_fUS_data_S999_R1.mat",
+          "task": "binary_decoder",
+          "brain_region": "parietal_reach_region",
+          "species": "nonhuman_primate",
+          "notes": "Example placeholder showing that a different brain region forms a separate group.",
+          "session_id": "S999",
+          "run_id": "R1",
+          "merge_key": "task=binary_decoder__brain_region=parietal_reach_region",
+          "can_merge": true
+        }
+      ],
+      "recommend_joint_training": false
+    },
+    {
+      "merge_key": "task=binary_decoder__brain_region=premotor_cortex",
+      "task": "binary_decoder",
+      "brain_region": "premotor_cortex",
+      "n_sessions": 1,
+      "session_members": [
+        "S5_R1"
+      ],
+      "sessions": [
+        {
+          "path": "/Users/ibuprofen/Desktop/fus-bmi/rt_fUS_BMI/py_fus_decoder/dataset/rt_fUS_data_S5_R1.mat",
+          "task": "binary_decoder",
+          "brain_region": "premotor_cortex",
+          "species": "nonhuman_primate",
+          "notes": "Example binary session.",
+          "session_id": "S5",
+          "run_id": "R1",
+          "merge_key": "task=binary_decoder__brain_region=premotor_cortex",
+          "can_merge": true
+        }
+      ],
+      "recommend_joint_training": false
+    },
+    {
+      "merge_key": "task=eight_target__brain_region=premotor_cortex",
+      "task": "eight_target",
+      "brain_region": "premotor_cortex",
+      "n_sessions": 1,
+      "session_members": [
+        "S17_R1"
+      ],
+      "sessions": [
+        {
+          "path": "/Users/ibuprofen/Desktop/fus-bmi/rt_fUS_BMI/py_fus_decoder/dataset/rt_fUS_data_S17_R1.mat",
+          "task": "eight_target",
+          "brain_region": "premotor_cortex",
+          "species": "nonhuman_primate",
+          "notes": "Example 8-target session.",
+          "session_id": "S17",
+          "run_id": "R1",
+          "merge_key": "task=eight_target__brain_region=premotor_cortex",
+          "can_merge": true
+        }
+      ],
+      "recommend_joint_training": false
+    }
+  ],
+  "excluded_sessions": []
+}
